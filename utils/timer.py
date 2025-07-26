@@ -1,6 +1,6 @@
 import time
 from functools import wraps
-from utils.logger import logger
+from core import logger
 
 def timer(func):
     @wraps(func)

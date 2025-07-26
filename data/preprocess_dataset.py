@@ -1,7 +1,7 @@
 import os
 import polars as pl
-from core.logger import logger
-from utils.timer import timer
+from core import logger
+from utils import timer
 
 RAW_DATA_PATH = os.path.join(
     os.path.dirname(__file__), 'raw', 'btcusd_1-min_data.csv'

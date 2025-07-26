@@ -34,6 +34,9 @@ class FeatureScaler:
             pl.Series(name, scaled[:, i]) for i, name in enumerate(cols_to_scale)
         ])
 
+        # Remove any rows with NaN (from lags, moving averages, etc)
+        df_scaled = df_scaled.drop_nulls()
+
         df_scaled.write_csv(self.output_path)
         logger.info(f"Scaled features saved to {self.output_path}")
 

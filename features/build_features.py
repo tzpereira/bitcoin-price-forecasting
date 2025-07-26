@@ -20,6 +20,29 @@ class FeatureBuilder:
     def run(self):
         df = pl.read_csv(self.input_path)
 
+        # --- AGGREGATE TO DAILY ---
+        # Assuming the datetime column is 'Datetime' and in ISO string format
+        df = df.with_columns([
+            pl.col('Datetime').str.slice(0, 10).alias('Date')
+        ])
+        
+        # Aggregate to daily: last Close, first Open, max High, min Low, sum Volume
+        daily = df.group_by('Date').agg([
+            pl.col('Open').first().alias('Open'),
+            pl.col('High').max().alias('High'),
+            pl.col('Low').min().alias('Low'),
+            pl.col('Close').last().alias('Close'),
+            pl.col('Volume').sum().alias('Volume')
+        ]).sort('Date')
+        daily = daily.with_columns([
+            pl.col('Date').str.strptime(pl.Date, "%Y-%m-%d").alias('Date')
+        ])
+        
+        # Rename 'Date' to 'Datetime' for compatibility
+        daily = daily.rename({'Date': 'Datetime'})
+
+        df = daily
+
         # Add lag features
         for lag in [1, 3, 7]:
             df = df.with_columns([

@@ -1,1 +1,4 @@
+pytest
 polars
+numpy
+scikit-learn

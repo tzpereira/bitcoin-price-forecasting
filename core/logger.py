@@ -1,6 +1,5 @@
-
-import logging
 import os
+import logging
 
 LOG_PATH = os.path.join(os.path.dirname(__file__), '..', 'logs', 'app.log')
 os.makedirs(os.path.dirname(LOG_PATH), exist_ok=True)

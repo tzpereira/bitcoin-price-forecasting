@@ -1,1 +1,1 @@
-from .preprocess_dataset import main as preprocess_data
+from .preprocess_dataset import DataPreprocessor

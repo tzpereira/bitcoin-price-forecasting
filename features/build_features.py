@@ -1,4 +1,3 @@
-
 import os
 import polars as pl
 from core.logger import logger
@@ -7,6 +6,7 @@ from utils.timer import timer
 PROCESSED_DATA_PATH = os.path.join(
     os.path.dirname(__file__), '..', 'data', 'processed', 'btc_data_processed.csv'
 )
+
 FEATURES_DATA_PATH = os.path.join(
     os.path.dirname(__file__), '..', 'data', 'processed', 'btc_features.csv'
 )
@@ -25,7 +25,7 @@ class FeatureBuilder:
         df = df.with_columns([
             pl.col('Datetime').str.slice(0, 10).alias('Date')
         ])
-        
+
         # Aggregate to daily: last Close, first Open, max High, min Low, sum Volume
         daily = df.group_by('Date').agg([
             pl.col('Open').first().alias('Open'),
@@ -34,10 +34,16 @@ class FeatureBuilder:
             pl.col('Close').last().alias('Close'),
             pl.col('Volume').sum().alias('Volume')
         ]).sort('Date')
+        
         daily = daily.with_columns([
             pl.col('Date').str.strptime(pl.Date, "%Y-%m-%d").alias('Date')
         ])
-        
+
+        # Add a trend feature
+        daily = daily.with_columns([
+            pl.arange(0, daily.height).alias('trend')
+        ])
+
         # Rename 'Date' to 'Datetime' for compatibility
         daily = daily.rename({'Date': 'Datetime'})
 
@@ -49,15 +55,28 @@ class FeatureBuilder:
                 pl.col('Close').shift(lag).alias(f'Close_lag_{lag}')
             ])
 
-        # Add moving averages
-        for window in [3, 7]:
+        # Add moving averages (short, medium, long)
+        for window in [3, 7, 14, 30]:
             df = df.with_columns([
                 pl.col('Close').rolling_mean(window).alias(f'Close_ma_{window}')
             ])
 
-        # Add percent return
+        # Add moving std (volatility)
+        for window in [7, 30]:
+            df = df.with_columns([
+                pl.col('Close').rolling_std(window).alias(f'Close_std_{window}')
+            ])
+
+        # Add percent return (1, 7, 30 days)
         df = df.with_columns([
-            (pl.col('Close') / pl.col('Close').shift(1) - 1).alias('Close_return_1')
+            (pl.col('Close') / pl.col('Close').shift(1) - 1).alias('Close_return_1'),
+            (pl.col('Close') / pl.col('Close').shift(7) - 1).alias('Close_return_7'),
+            (pl.col('Close') / pl.col('Close').shift(30) - 1).alias('Close_return_30')
+        ])
+
+        # Add momentum ( difference between moving averages)
+        df = df.with_columns([
+            (pl.col('Close_ma_7') - pl.col('Close_ma_30')).alias('momentum_7_30')
         ])
 
         df.write_csv(self.output_path)

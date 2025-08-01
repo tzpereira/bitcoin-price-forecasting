@@ -70,34 +70,57 @@ class FeatureBuilder:
 
         df = daily
 
-        # Add lag features
-        for lag in [1, 3, 7]:
+        # --- FEATURE ENGINEERING OHLCV ---
+        price_cols = ['Open', 'High', 'Low', 'Close']
+        all_cols = price_cols + ['Volume']
+
+        # Lags
+        for col in all_cols:
+            for lag in [1, 3, 7]:
+                df = df.with_columns([
+                    pl.col(col).shift(lag).alias(f'{col}_lag_{lag}')
+                ])
+
+        # Moving averages
+        for col in price_cols:
+            for window in [3, 7, 14, 30]:
+                df = df.with_columns([
+                    pl.col(col).rolling_mean(window).alias(f'{col}_ma_{window}')
+                ])
+
+        # Volatility (std)
+        for col in price_cols:
+            for window in [7, 30]:
+                df = df.with_columns([
+                    pl.col(col).rolling_std(window).alias(f'{col}_std_{window}')
+                ])
+
+        # Percent returns for 1, 3 and 6 months
+        for col in price_cols:
             df = df.with_columns([
-                pl.col('Close').shift(lag).alias(f'Close_lag_{lag}')
+                (pl.col(col) / pl.col(col).shift(30) - 1).alias(f'{col}_return_30'),
+                (pl.col(col) / pl.col(col).shift(90) - 1).alias(f'{col}_return_90'),
+                (pl.col(col) / pl.col(col).shift(180) - 1).alias(f'{col}_return_180')
             ])
 
-        # Add moving averages (short, medium, long)
-        for window in [3, 7, 14, 30]:
+        # Momentum (short - long MA)
+        for col in price_cols:
             df = df.with_columns([
-                pl.col('Close').rolling_mean(window).alias(f'Close_ma_{window}')
+                (pl.col(f'{col}_ma_7') - pl.col(f'{col}_ma_30')).alias(f'{col}_momentum_7_30')
             ])
 
-        # Add moving std (volatility)
+        # Volume moving averages e std
         for window in [7, 30]:
             df = df.with_columns([
-                pl.col('Close').rolling_std(window).alias(f'Close_std_{window}')
+                pl.col('Volume').rolling_mean(window).alias(f'Volume_ma_{window}'),
+                pl.col('Volume').rolling_std(window).alias(f'Volume_std_{window}')
             ])
 
-        # Add percent return (1, 7, 30 days)
+        # Features derivadas OHLCV
         df = df.with_columns([
-            (pl.col('Close') / pl.col('Close').shift(1) - 1).alias('Close_return_1'),
-            (pl.col('Close') / pl.col('Close').shift(7) - 1).alias('Close_return_7'),
-            (pl.col('Close') / pl.col('Close').shift(30) - 1).alias('Close_return_30')
-        ])
-
-        # Add momentum ( difference between moving averages)
-        df = df.with_columns([
-            (pl.col('Close_ma_7') - pl.col('Close_ma_30')).alias('momentum_7_30')
+            (pl.col('High') - pl.col('Low')).alias('hl_range'),
+            (pl.col('Close') - pl.col('Open')).alias('candle_body'),
+            (pl.col('Volume') + 1).log().alias('log_volume')
         ])
 
         df.write_csv(self.output_path)

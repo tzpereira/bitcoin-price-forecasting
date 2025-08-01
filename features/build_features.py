@@ -1,5 +1,7 @@
+
 import os
 import polars as pl
+import datetime
 from core.logger import logger
 from utils.timer import timer
 
@@ -42,6 +44,25 @@ class FeatureBuilder:
         # Add a trend feature
         daily = daily.with_columns([
             pl.arange(0, daily.height).alias('trend')
+        ])
+
+        # Add calendar features (weekday, month)
+        daily = daily.with_columns([
+            pl.col('Date').dt.weekday().alias('weekday'),
+            pl.col('Date').dt.month().alias('month')
+        ])
+
+        # Add halving event dummy (real dates, every 4 years from 2012-11-28)
+        first_halving = datetime.date(2012, 11, 28)
+        halving_dates = [first_halving]
+        for i in range(1, 10):  # up to 40 years, adjust as needed
+            halving_dates.append(datetime.date(first_halving.year + 4*i, 11, 28))
+            
+        # Convert halving dates to pl.Date
+        daily = daily.with_columns([
+            pl.when(
+                pl.col('Date').cast(pl.Date).is_in(halving_dates)
+            ).then(1).otherwise(0).alias('halving_event')
         ])
 
         # Rename 'Date' to 'Datetime' for compatibility

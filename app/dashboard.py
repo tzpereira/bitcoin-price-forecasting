@@ -16,10 +16,10 @@ def show_dashboard():
     st.markdown("---")
 
     # Load and prepare predictions BEFORE using in chart or table
-    pred_path = "data/tests/linear_regression_predictions_future_h180.csv"
+    pred_path = "data/tests/linear_regression_predictions_future_h365.csv"
     df_pred = pl.read_csv(pred_path)
     df_pred = df_pred.with_columns([
-        pl.col("Datetime").str.slice(0, 180).alias("Date"),
+        pl.col("Datetime").str.slice(0, 365).alias("Date"),
         pl.col("prediction_real").round(2)
     ])
 
@@ -45,7 +45,7 @@ def show_dashboard():
 
     st.markdown("---")
 
-    st.subheader("Forecast Table (Next 180 Days)")
+    st.subheader("Forecast Table (Next 365 Days)")
     st.dataframe(
         df_pred.select(["Date", "prediction_real"]).rename({"prediction_real": "Predicted Price"}),
         use_container_width=True,

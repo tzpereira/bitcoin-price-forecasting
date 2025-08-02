@@ -1,7 +1,12 @@
+import os
 import datetime
 import polars as pl
 import numpy as np
 from models.linear_regression import LinearRegressionModel
+
+FEATURES_DATA_PATH = os.path.join(
+    os.path.dirname(__file__), '..', 'data', 'processed', 'btc_features.parquet'
+)
 
 def test_linear_regression():
 
@@ -12,7 +17,7 @@ def test_linear_regression():
             return 0.0
         return float(val)
 
-    df = pl.read_csv('data/processed/btc_features.csv')
+    df = pl.read_parquet(FEATURES_DATA_PATH)
 
     feature_cols = [col for col in df.columns if col not in ['Datetime', 'Timestamp', 'Close']]
 
@@ -50,24 +55,26 @@ def test_linear_regression():
 
     # Use a larger historical window, e.g., 3 years (~1095 days)
     window_size = 1095
-    df_raw = pl.read_csv('data/processed/btc_features.csv')
+    df_raw = pl.read_parquet(FEATURES_DATA_PATH)
     df_raw = df_raw.select([col for col in df_raw.columns if col in ['Datetime', 'Close'] + feature_cols])
 
     for n_forecast in horizons:
         # Start with the last window_size days as history
         history = df_raw[-window_size:].clone()
-        dt_str = history[-1]['Datetime']
-        if isinstance(dt_str, pl.Series):
-            dt_str = dt_str.item()
-        if 'T' in dt_str:
-            dt_str = dt_str.replace('T', ' ')
-        try:
-            last_datetime = datetime.datetime.strptime(dt_str, "%Y-%m-%d %H:%M:%S.%f")
-        except ValueError:
+        dt_val = history[-1]['Datetime']
+        if isinstance(dt_val, pl.Series):
+            dt_val = dt_val.item()
+        if isinstance(dt_val, (datetime.datetime, datetime.date)):
+            last_datetime = datetime.datetime.combine(dt_val, datetime.time.min) if isinstance(dt_val, datetime.date) and not isinstance(dt_val, datetime.datetime) else dt_val
+        else:
+            # safe fallback for string parsing if necessary
             try:
-                last_datetime = datetime.datetime.strptime(dt_str, "%Y-%m-%d %H:%M:%S")
+                last_datetime = datetime.datetime.strptime(dt_val, "%Y-%m-%d %H:%M:%S.%f")
             except ValueError:
-                last_datetime = datetime.datetime.strptime(dt_str, "%Y-%m-%d")
+                try:
+                    last_datetime = datetime.datetime.strptime(dt_val, "%Y-%m-%d %H:%M:%S")
+                except ValueError:
+                    last_datetime = datetime.datetime.strptime(dt_val, "%Y-%m-%d")
 
         future_rows = []
         for i in range(n_forecast):
@@ -235,4 +242,4 @@ def test_linear_regression():
             last_datetime = next_datetime
 
         # Save predictions for each horizon
-        pl.DataFrame(future_rows).write_csv(f"data/tests/linear_regression_predictions_future_h{n_forecast}.csv")
+        pl.DataFrame(future_rows).write_parquet(f"data/tests/linear_regression_predictions_future_h{n_forecast}.parquet")

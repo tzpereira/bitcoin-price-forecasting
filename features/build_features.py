@@ -123,6 +123,30 @@ class FeatureBuilder:
             (pl.col('Volume') + 1).log().alias('log_volume')
         ])
 
+
+        # --- POSTPROCESSING: TYPE CONSISTENCY, NANS, NORMALIZATION ---
+        # Ensure all *_return_180 columns are float64
+        return_180_cols = [col for col in df.columns if col.endswith('_return_180')]
+        df = df.with_columns([
+            pl.col(col).cast(pl.Float64, strict=False).fill_null(0).fill_nan(0) if col in return_180_cols else pl.col(col)
+            for col in df.columns
+        ])
+
+        # Fill NaNs in all numeric columns and cast to float64
+        df = df.with_columns([
+            pl.col(col).fill_null(0).fill_nan(0).cast(pl.Float64)
+            if df.schema[col] in [pl.Float64, pl.Int64, pl.Boolean] else pl.col(col)
+            for col in df.columns
+        ])
+
+        # --- FINAL NAN HANDLING: ENSURE NO NANS IN NUMERIC COLUMNS ---
+        numeric_cols = [col for col, dtype in df.schema.items() if dtype in [pl.Float64, pl.Int64]]
+        df = df.with_columns([
+            pl.col(col).fill_null(0).fill_nan(0) if col in numeric_cols else pl.col(col)
+            for col in df.columns
+        ])
+        
+        # Save raw features (ready for linear models, XGBoost, Prophet)
         df.write_csv(self.output_path)
         logger.info(f"Features saved to {self.output_path}")
 

@@ -6,8 +6,9 @@ from utils import timer
 RAW_DATA_PATH = os.path.join(
     os.path.dirname(__file__), 'raw', 'btcusd_1-min_data.csv'
 )
+
 PROCESSED_DATA_PATH = os.path.join(
-    os.path.dirname(__file__), 'processed', 'btc_data_processed.csv'
+    os.path.dirname(__file__), 'processed', 'btc_data_processed.parquet'
 )
 
 class DataPreprocessor:
@@ -38,7 +39,7 @@ class DataPreprocessor:
             raise ValueError(f"Missing columns: {missing}")
         df = df.select(required)
 
-        df.write_csv(self.processed_path)
+        df.write_parquet(self.processed_path)
         logger.info(f"Processed data saved to {self.processed_path}")
 
 if __name__ == "__main__":

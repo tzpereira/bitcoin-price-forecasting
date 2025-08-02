@@ -6,11 +6,11 @@ from core.logger import logger
 from utils.timer import timer
 
 PROCESSED_DATA_PATH = os.path.join(
-    os.path.dirname(__file__), '..', 'data', 'processed', 'btc_data_processed.csv'
+    os.path.dirname(__file__), '..', 'data', 'processed', 'btc_data_processed.parquet'
 )
 
 FEATURES_DATA_PATH = os.path.join(
-    os.path.dirname(__file__), '..', 'data', 'processed', 'btc_features.csv'
+    os.path.dirname(__file__), '..', 'data', 'processed', 'btc_features.parquet'
 )
 
 class FeatureBuilder:
@@ -20,12 +20,12 @@ class FeatureBuilder:
 
     @timer
     def run(self):
-        df = pl.read_csv(self.input_path)
+        df = pl.read_parquet(self.input_path)
 
         # --- AGGREGATE TO DAILY ---
-        # Assuming the datetime column is 'Datetime' and in ISO string format
+        # Convert Datetime to string before slicing for date
         df = df.with_columns([
-            pl.col('Datetime').str.slice(0, 10).alias('Date')
+            pl.col('Datetime').cast(pl.Utf8).str.slice(0, 10).alias('Date')
         ])
 
         # Aggregate to daily: last Close, first Open, max High, min Low, sum Volume
@@ -147,7 +147,7 @@ class FeatureBuilder:
         ])
         
         # Save raw features (ready for linear models, XGBoost, Prophet)
-        df.write_csv(self.output_path)
+        df.write_parquet(self.output_path)
         logger.info(f"Features saved to {self.output_path}")
 
 if __name__ == "__main__":

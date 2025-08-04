@@ -4,7 +4,10 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 import streamlit as st
 import polars as pl
 import plotly.express as px
-from services.forecast_service import run_linear_regression_forecast
+import plotly.graph_objects as go
+from services.forecast_service import run_linear_regression_forecast, run_xgboost_forecast
+
+FEATURES_DATA_PATH = os.path.join(os.path.dirname(__file__), '..', 'data', 'processed', 'btc_features.parquet')
 
 def show_dashboard():
     st.set_page_config(layout="wide")
@@ -30,7 +33,7 @@ def show_dashboard():
     st.markdown("<div style='text-align:center; font-size:1.2em; margin-bottom:1.5em;'>This app demonstrates Bitcoin price forecasting using linear regression.<br>Soon: comparison with other models and more visual features!</div>", unsafe_allow_html=True)
 
     with st.container():
-        model_options = ["Linear Regression"]
+        model_options = ["Linear Regression", "XGBoost"]
         selected_model = st.selectbox("Select forecasting model:", model_options, index=0)
         col1, col2 = st.columns([1,1])
         with col1:
@@ -47,6 +50,8 @@ def show_dashboard():
             progress_bar.progress(current / total, text=f"Running forecast... {current}/{total}")
         if selected_model == "Linear Regression":
             future_rows, metrics = run_linear_regression_forecast(horizon=horizon, window_size=window_size, progress_callback=progress_callback)
+        elif selected_model == "XGBoost":
+            future_rows, metrics = run_xgboost_forecast(horizon=horizon, window_size=window_size, progress_callback=progress_callback, model_params=None)
         else:
             st.error("Model not implemented.")
             return
@@ -57,16 +62,45 @@ def show_dashboard():
             pl.col("prediction_real").round(2)
         ])
 
-        st.markdown("<h3 style='color:#F39C12; margin-bottom:0.5em;'>Forecast Results</h3>", unsafe_allow_html=True)
-        fig = px.line(
-            df_pred.to_pandas(),
-            x="Date",
-            y="prediction_real",
-            title="",
-            markers=True,
-            template="plotly_dark"
-        )
-        fig.update_traces(line=dict(color="#F39C12", width=3))
+        # Load historical data for plotting
+        df_hist = pl.read_parquet(FEATURES_DATA_PATH)
+        df_hist = df_hist.with_columns([
+            pl.col("Datetime").cast(pl.Utf8).str.slice(0, 10).alias("Date")
+        ])
+        df_hist = df_hist.select(["Date", "Close"]).unique(subset=["Date"]).sort("Date")
+        
+        # Plot
+        fig = go.Figure()
+        
+        # Historical (blue)
+        fig.add_trace(go.Scatter(
+            x=df_hist["Date"],
+            y=df_hist["Close"],
+            mode="lines",
+            name="Historical",
+            line=dict(color="#3498db", width=3)
+        ))
+        
+        # Connect forecast to last real value
+        forecast_dates = df_pred["Date"].to_list()
+        forecast_values = df_pred["prediction_real"].to_list()
+        
+        # Get last real date and value
+        last_real_date = df_hist["Date"][-1]
+        last_real_value = df_hist["Close"][-1]
+        
+        # Insert last real point at the start of forecast
+        forecast_dates = [last_real_date] + forecast_dates
+        forecast_values = [last_real_value] + forecast_values
+        
+        # Forecast (orange)
+        fig.add_trace(go.Scatter(
+            x=forecast_dates,
+            y=forecast_values,
+            mode="lines+markers",
+            name="Forecast",
+            line=dict(color="#F39C12", width=3)
+        ))
         fig.update_layout(
             xaxis_title="Date",
             yaxis_title="Predicted Price (USD)",
@@ -74,8 +108,10 @@ def show_dashboard():
             paper_bgcolor="#181818",
             font=dict(color="#FAFAFA"),
             hovermode="x unified",
-            margin=dict(l=10, r=10, t=10, b=10)
+            margin=dict(l=10, r=10, t=10, b=10),
+            legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1)
         )
+        st.markdown("<h3 style='color:#F39C12; margin-bottom:0.5em;'>Forecast Results</h3>", unsafe_allow_html=True)
         st.plotly_chart(fig, use_container_width=True)
 
         col_mae, col_rmse = st.columns(2)

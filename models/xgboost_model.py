@@ -24,7 +24,7 @@ class XGBoostModel:
 
     @timer
     def fit(self):
-        df = pl.read_csv(self.features_path)
+        df = pl.read_parquet(self.features_path)
         if self.feature_cols is None:
             # Exclude date columns and target
             self.feature_cols = [col for col in df.columns if col not in ['Datetime', 'Timestamp', self.target_col]]
@@ -42,7 +42,7 @@ class XGBoostModel:
 
     def predict_from_file(self, features_path=None):
         features_path = features_path or self.features_path
-        df = pl.read_csv(features_path)
+        df = pl.read_parquet(features_path)
         X = df.select(self.feature_cols).to_numpy()
         return self.predict(X)
 

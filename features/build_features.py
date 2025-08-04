@@ -52,17 +52,41 @@ class FeatureBuilder:
             pl.col('Date').dt.month().alias('month')
         ])
 
-        # Add halving event dummy (real dates, every 4 years from 2012-11-28)
+        # Add halving event and cycle features
         first_halving = datetime.date(2012, 11, 28)
         halving_dates = [first_halving]
+        
         for i in range(1, 10):  # up to 40 years, adjust as needed
             halving_dates.append(datetime.date(first_halving.year + 4*i, 11, 28))
-            
+
         # Convert halving dates to pl.Date
         daily = daily.with_columns([
             pl.when(
                 pl.col('Date').cast(pl.Date).is_in(halving_dates)
             ).then(1).otherwise(0).alias('halving_event')
+        ])
+
+        # Days since last halving
+        def days_since_last_halving(date):
+            return min([(date - h).days for h in halving_dates if date >= h] or [0])
+        
+        # Days until next halving
+        def days_until_next_halving(date):
+            return min([(h - date).days for h in halving_dates if h >= date] or [0])
+        
+        # Halving cycle (1,2,3...)
+        def halving_cycle(date):
+            return sum([1 for h in halving_dates if date >= h])
+        
+        # Post-halving flag (1 if within 365 days after halving, 0 otherwise)
+        def post_halving_flag(date):
+            return int(any([(date - h).days >= 0 and (date - h).days <= 365 for h in halving_dates]))
+
+        daily = daily.with_columns([
+            pl.col('Date').map_elements(days_since_last_halving, return_dtype=pl.Int64).alias('days_since_last_halving'),
+            pl.col('Date').map_elements(days_until_next_halving, return_dtype=pl.Int64).alias('days_until_next_halving'),
+            pl.col('Date').map_elements(halving_cycle, return_dtype=pl.Int64).alias('halving_cycle'),
+            pl.col('Date').map_elements(post_halving_flag, return_dtype=pl.Int64).alias('post_halving_flag'),
         ])
 
         # Rename 'Date' to 'Datetime' for compatibility
@@ -109,14 +133,14 @@ class FeatureBuilder:
                 (pl.col(f'{col}_ma_7') - pl.col(f'{col}_ma_30')).alias(f'{col}_momentum_7_30')
             ])
 
-        # Volume moving averages e std
+        # Volume moving averages and std
         for window in [7, 30]:
             df = df.with_columns([
                 pl.col('Volume').rolling_mean(window).alias(f'Volume_ma_{window}'),
                 pl.col('Volume').rolling_std(window).alias(f'Volume_std_{window}')
             ])
 
-        # Features derivadas OHLCV
+        # Derived OHLCV features
         df = df.with_columns([
             (pl.col('High') - pl.col('Low')).alias('hl_range'),
             (pl.col('Close') - pl.col('Open')).alias('candle_body'),

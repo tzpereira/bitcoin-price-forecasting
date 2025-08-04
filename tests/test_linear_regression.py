@@ -242,4 +242,4 @@ def test_linear_regression():
             last_datetime = next_datetime
 
         # Save predictions for each horizon
-        pl.DataFrame(future_rows).write_parquet(f"data/tests/linear_regression_predictions_future_h{n_forecast}.parquet")
+        pl.DataFrame(future_rows).write_parquet(f"data/tests/linear_regression_prediction.parquet")

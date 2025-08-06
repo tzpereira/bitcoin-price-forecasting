@@ -23,12 +23,6 @@ class BaseModel(ABC):
         if not isinstance(future_periods, int) or future_periods <= 0:
             raise ValueError("future_periods must be a positive integer.")
 
-    def _validate_evaluate_input(self, df_true, df_pred):
-        if not isinstance(df_true, pl.DataFrame) or not isinstance(df_pred, pl.DataFrame):
-            raise ValueError("Both arguments to evaluate() must be polars DataFrames.")
-        if df_true.shape != df_pred.shape:
-            raise ValueError("Shape of true and predicted DataFrames must match.")
-
     @abstractmethod
     def fit(self, df: pl.DataFrame):
         self._validate_fit_input(df)
@@ -36,7 +30,3 @@ class BaseModel(ABC):
     @abstractmethod
     def predict(self, future_periods: int) -> pl.DataFrame:
         self._validate_predict_input(future_periods)
-
-    @abstractmethod
-    def evaluate(self, df_true: pl.DataFrame, df_pred: pl.DataFrame) -> dict:
-        self._validate_evaluate_input(df_true, df_pred)

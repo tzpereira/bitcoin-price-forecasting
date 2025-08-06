@@ -3,14 +3,22 @@ import polars as pl
 import numpy as np
 from models.xgboost_model import XGBoostModel
 
-def test_xgboost():
-    FEATURES_DATA_PATH = os.path.join(
-        os.path.dirname(__file__), '..', 'data', 'processed', 'btc_features.parquet'
-    )
-    MODEL_PATH = os.path.join(
-        os.path.dirname(__file__), '..', 'data', 'models', 'xgb_model_test.pkl'
-    )
+FEATURES_DATA_PATH = os.path.join(
+    os.path.dirname(__file__), '..', 'data', 'processed', 'btc_features.parquet'
+)
 
+MODELS_DIR = os.path.join(os.path.dirname(__file__), '..', 'data', 'models')
+os.makedirs(MODELS_DIR, exist_ok=True)
+
+TESTS_DIR = os.path.join(os.path.dirname(__file__), '..', 'data', 'tests')
+os.makedirs(TESTS_DIR, exist_ok=True)
+
+MODEL_PATH = os.path.join(MODELS_DIR, 'xgb_model_test.pkl')
+    
+def test_xgboost():
+    """ Test XGBoost model training and prediction on Bitcoin dataset. """
+    
+    
     # Load data
     df = pl.read_parquet(FEATURES_DATA_PATH)
     feature_cols = [col for col in df.columns if col not in ['Datetime', 'Timestamp', 'Close']]
@@ -51,4 +59,4 @@ def test_xgboost():
     ])
     
     # Save predictions for each horizon
-    out_df.write_parquet(f"data/tests/xgboost_predictions.parquet")
+    out_df.write_parquet(os.path.join(TESTS_DIR, "xgboost_predictions.parquet"))

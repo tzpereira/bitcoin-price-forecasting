@@ -8,7 +8,14 @@ FEATURES_DATA_PATH = os.path.join(
     os.path.dirname(__file__), '..', 'data', 'processed', 'btc_features.parquet'
 )
 
+MODELS_DIR = os.path.join(os.path.dirname(__file__), '..', 'data', 'models')
+os.makedirs(MODELS_DIR, exist_ok=True)
+
+TESTS_DIR = os.path.join(os.path.dirname(__file__), '..', 'data', 'tests')
+os.makedirs(TESTS_DIR, exist_ok=True)
+
 def test_linear_regression():
+    """ Test Linear Regression model training and prediction on Bitcoin dataset. """
 
     def safe_float(val):
         if isinstance(val, pl.Series):
@@ -242,4 +249,4 @@ def test_linear_regression():
             last_datetime = next_datetime
 
         # Save predictions for each horizon
-        pl.DataFrame(future_rows).write_parquet(f"data/tests/linear_regression_prediction.parquet")
+        pl.DataFrame(future_rows).write_parquet(os.path.join(TESTS_DIR, "linear_regression_prediction.parquet"))

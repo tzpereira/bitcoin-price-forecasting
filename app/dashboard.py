@@ -30,7 +30,7 @@ def show_dashboard():
     """, unsafe_allow_html=True)
 
     st.markdown("<h1 style='color:#F39C12; text-align:center; margin-bottom:0.2em;'>Bitcoin Price Forecasting</h1>", unsafe_allow_html=True)
-    st.markdown("<div style='text-align:center; font-size:1.2em; margin-bottom:1.5em;'>This app demonstrates Bitcoin price forecasting using linear regression.<br>Soon: comparison with other models and more visual features!</div>", unsafe_allow_html=True)
+    st.markdown("<div style='text-align:center; font-size:1.2em; margin-bottom:1.5em;'>This app demonstrates Bitcoin price forecasting using xgboost and linear regression.</div>", unsafe_allow_html=True)
 
     with st.container():
         model_options = ["Linear Regression", "XGBoost"]

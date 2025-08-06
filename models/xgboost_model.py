@@ -1,4 +1,3 @@
-
 import os
 import polars as pl
 import xgboost as xgb
@@ -6,7 +5,10 @@ import joblib
 from core.logger import logger
 from utils.timer import timer
 
+
 class XGBoostModel:
+    """ XGBoost model for regression tasks, specifically designed for Bitcoin price forecasting. """
+    
     def __init__(self, features_path, model_path=None, target_col='Close', feature_cols=None, params=None):
         self.features_path = features_path
         self.model_path = model_path or os.path.join(os.path.dirname(__file__), '..', 'data', 'models', 'xgb_model.pkl')
@@ -60,3 +62,24 @@ class XGBoostModel:
         self.feature_cols = data['feature_cols']
         self.params = data['params']
         logger.info(f"XGBoost model loaded from {self.model_path}")
+
+if __name__ == "__main__":
+    # Define paths for features and model storage
+    FEATURES_PATH = os.path.join(
+        os.path.dirname(__file__), '..', 'data', 'processed', 'btc_features.parquet'
+    )
+    MODELS_DIR = os.path.join(
+        os.path.dirname(__file__), '..', 'data', 'models'
+    )
+
+    # Ensure the models directory exists
+    os.makedirs(MODELS_DIR, exist_ok=True)
+
+    MODEL_PATH = os.path.join(MODELS_DIR, 'xgb_model.pkl')
+
+    # Initialize and train the XGBoost model
+    model = XGBoostModel(
+        features_path=FEATURES_PATH,
+        model_path=MODEL_PATH
+    )
+    model.fit()

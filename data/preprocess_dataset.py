@@ -65,6 +65,10 @@ class DataPreprocessor:
             raise ValueError(f"Missing columns: {missing}")
         df = df.select(required)
 
+        # Ensure processed directory exists
+        processed_dir = os.path.dirname(self.processed_path)
+        os.makedirs(processed_dir, exist_ok=True)
+
         df.write_parquet(self.processed_path)
         logger.info(f"Processed data saved to {self.processed_path}")
 

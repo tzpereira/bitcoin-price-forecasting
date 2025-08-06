@@ -24,7 +24,7 @@ class LinearRegressionModel(BaseModel):
         X = df.select(self.feature_cols).to_numpy()
         y = df['Close'].to_numpy()
         self.model.fit(X, y)
-        self.last_X = X[-1:].copy()  # salva o último vetor de features reais
+        self.last_X = X[-1:].copy()  # save last feature vector
         self.is_fitted = True
         logger.info(f"LinearRegressionModel fitted with {len(self.feature_cols)} features.")
         self.save()
@@ -44,14 +44,6 @@ class LinearRegressionModel(BaseModel):
         preds = self.model.predict(X_np)
         return pl.DataFrame({"prediction": preds})
 
-    def evaluate(self, df_true: pl.DataFrame, df_pred: pl.DataFrame) -> dict:
-        self._validate_evaluate_input(df_true, df_pred)
-        y_true = df_true['Close'].to_numpy()
-        y_pred = df_pred['prediction'].to_numpy()
-        mae = mean_absolute_error(y_true, y_pred)
-        rmse = mean_squared_error(y_true, y_pred) ** 0.5
-        logger.info(f"Evaluation - MAE: {mae:.4f}, RMSE: {rmse:.4f}")
-        return {"mae": mae, "rmse": rmse}
 
 if __name__ == "__main__":
     # Define the path to the features parquet file

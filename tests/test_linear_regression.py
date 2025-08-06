@@ -51,13 +51,6 @@ def test_linear_regression():
     model = LinearRegressionModel(model_path=MODEL_PATH)
 
     model.fit(fit_df)
-    preds = model.predict(df)
-    
-    # No need to invert normalization, using real data
-    metrics = model.evaluate(df.select(['Close']), preds)
-    print(metrics)
-    assert 'mae' in metrics and 'rmse' in metrics
-    assert metrics['mae'] >= 0 and metrics['rmse'] >= 0
 
     # Rolling forecast for multiple horizons and rolling window with retraining
     horizons = [365]

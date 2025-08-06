@@ -1,6 +1,6 @@
-
+import os
+import joblib
 import polars as pl
-import numpy as np
 from sklearn.linear_model import LinearRegression
 from sklearn.metrics import mean_absolute_error, mean_squared_error
 from core import logger
@@ -8,12 +8,14 @@ from .base_model import BaseModel
 
 
 class LinearRegressionModel(BaseModel):
-    def __init__(self):
+    """ Linear Regression model for Bitcoin price forecasting. """
+
+    def __init__(self, model_path=None):
         super().__init__()
         # Explicitly set fit_intercept=True for more realistic rolling forecast
         self.model = LinearRegression(fit_intercept=True)
+        self.model_path = model_path or os.path.join(os.path.dirname(__file__), '..', 'data', 'models', 'linear_regression_model.pkl')
         self.feature_cols = None
-
 
     def fit(self, df: pl.DataFrame):
         self._validate_fit_input(df)
@@ -25,7 +27,14 @@ class LinearRegressionModel(BaseModel):
         self.last_X = X[-1:].copy()  # salva o último vetor de features reais
         self.is_fitted = True
         logger.info(f"LinearRegressionModel fitted with {len(self.feature_cols)} features.")
+        self.save()
 
+    def save(self):
+        joblib.dump({
+            'model': self.model,
+            'feature_cols': self.feature_cols
+        }, self.model_path)
+        logger.info(f"LinearRegressionModel saved to {self.model_path}")
 
     def predict(self, X: pl.DataFrame) -> pl.DataFrame:
         if not self.is_fitted:
@@ -43,3 +52,25 @@ class LinearRegressionModel(BaseModel):
         rmse = mean_squared_error(y_true, y_pred) ** 0.5
         logger.info(f"Evaluation - MAE: {mae:.4f}, RMSE: {rmse:.4f}")
         return {"mae": mae, "rmse": rmse}
+
+if __name__ == "__main__":
+    # Define the path to the features parquet file
+    FEATURES_PATH = os.path.join(
+        os.path.dirname(__file__), '..', 'data', 'processed', 'btc_features.parquet'
+    )
+
+    # Define the directory to save models
+    MODELS_DIR = os.path.join(
+        os.path.dirname(__file__), '..', 'data', 'models'
+    )
+    os.makedirs(MODELS_DIR, exist_ok=True)
+
+    # Define the path to save the trained model
+    MODEL_PATH = os.path.join(MODELS_DIR, 'linear_regression_model.pkl')
+
+    # Load the features DataFrame
+    df = pl.read_parquet(FEATURES_PATH)
+
+    # Initialize and fit the Linear Regression model
+    model = LinearRegressionModel()
+    model.fit(df)

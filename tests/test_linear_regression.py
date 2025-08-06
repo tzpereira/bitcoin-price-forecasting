@@ -11,6 +11,8 @@ FEATURES_DATA_PATH = os.path.join(
 MODELS_DIR = os.path.join(os.path.dirname(__file__), '..', 'data', 'models')
 os.makedirs(MODELS_DIR, exist_ok=True)
 
+MODEL_PATH = os.path.join(MODELS_DIR, 'linear_model_test.pkl')
+
 TESTS_DIR = os.path.join(os.path.dirname(__file__), '..', 'data', 'tests')
 os.makedirs(TESTS_DIR, exist_ok=True)
 
@@ -46,8 +48,8 @@ def test_linear_regression():
     # Use only numeric features for fitting
     fit_df = pl.DataFrame({col: df[col] for col in ['Datetime'] + numeric_cols + ['Close']})
 
-    model = LinearRegressionModel()
-    
+    model = LinearRegressionModel(model_path=MODEL_PATH)
+
     model.fit(fit_df)
     preds = model.predict(df)
     

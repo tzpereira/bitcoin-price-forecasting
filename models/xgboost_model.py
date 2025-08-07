@@ -49,6 +49,8 @@ class XGBoostModel:
         return self.predict(X)
 
     def save(self):
+        # Ensure the directory exists before saving
+        os.makedirs(os.path.dirname(os.path.abspath(self.model_path)), exist_ok=True)
         joblib.dump({
             'model': self.model,
             'feature_cols': self.feature_cols,

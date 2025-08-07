@@ -38,34 +38,6 @@ def run_linear_regression_forecast(horizon=365, window_size=1095, progress_callb
         nan_cols = [col for idx, col in enumerate(numeric_cols) if np.isnan(X_np[:, idx]).any()]
         raise AssertionError(f"There are still NaNs in numeric features: {nan_cols}")
 
-    # Train model once on all history for metrics
-    fit_df = pl.DataFrame({col: df[col] for col in ['Datetime'] + numeric_cols + ['Close']})
-    model = LinearRegressionModel()
-    model.fit(fit_df)
-    preds_df = model.predict(fit_df.select(numeric_cols))
-    
-    # If the return is a DataFrame, extract 'prediction' column as 1D array
-    if hasattr(preds_df, 'to_numpy'):
-        if hasattr(preds_df, 'columns') and 'prediction' in preds_df.columns:
-            preds = preds_df['prediction'].to_numpy()
-        else:
-            preds = preds_df.to_numpy().flatten()
-    else:
-        preds = np.array(preds_df).flatten()
-
-    y_true = fit_df['Close'].to_numpy().flatten()
-    preds = np.array(preds).flatten()
-    
-    # Remove NaN
-    mask = ~np.isnan(y_true) & ~np.isnan(preds)
-    y_true = y_true[mask]
-    preds = preds[mask]
-    
-    fit_metrics = {
-        'mae': float(np.mean(np.abs(y_true - preds))),
-        'rmse': float(np.sqrt(np.mean((y_true - preds) ** 2)))
-    }
-
     # Prepare rolling forecast
     df_raw = pl.read_parquet(FEATURES_DATA_PATH)
     df_raw = df_raw.select([col for col in df_raw.columns if col in ['Datetime', 'Close'] + feature_cols])
@@ -226,10 +198,10 @@ def run_linear_regression_forecast(horizon=365, window_size=1095, progress_callb
                     pass
 
         history = history.vstack(row_df)
-        future_rows.append({"Datetime": next_datetime.strftime("%Y-%m-%d %H:%M:%S"), "prediction_real": pred_real})
+        future_rows.append({"Datetime": next_datetime.strftime("%Y-%m-%d %H:%M:%S"), "prediction": pred_real})
         last_datetime = next_datetime
 
-    return future_rows, fit_metrics
+    return future_rows
 
 def run_xgboost_forecast(horizon=365, window_size=1095, progress_callback=None, model_params=None):
     """
@@ -249,9 +221,6 @@ def run_xgboost_forecast(horizon=365, window_size=1095, progress_callback=None, 
         nan_cols = [col for idx, col in enumerate(numeric_cols) if np.isnan(X_np[:, idx]).any()]
         raise AssertionError(f"There are still NaNs in numeric features: {nan_cols}")
 
-    # Train model once on all history for metrics
-    fit_df = pl.DataFrame({col: df[col] for col in ['Datetime'] + numeric_cols + ['Close']})
-    
     model = XGBoostModel(
         features_path=FEATURES_DATA_PATH,
         model_path=XGBOOST_MODEL_PATH,
@@ -267,22 +236,6 @@ def run_xgboost_forecast(horizon=365, window_size=1095, progress_callback=None, 
         }
     )
     
-    model.fit()
-    
-    preds = model.predict(fit_df.select(numeric_cols).to_numpy())
-    y_true = fit_df['Close'].to_numpy().flatten()
-    preds = np.array(preds).flatten()
-
-    # Remove NaN
-    mask = ~np.isnan(y_true) & ~np.isnan(preds)
-    y_true = y_true[mask]
-    preds = preds[mask]
-    
-    metrics = {
-        'mae': float(np.mean(np.abs(y_true - preds))),
-        'rmse': float(np.sqrt(np.mean((y_true - preds) ** 2)))
-    }
-
     # Prepare rolling forecast
     df_raw = pl.read_parquet(FEATURES_DATA_PATH)
     df_raw = df_raw.select([col for col in df_raw.columns if col in ['Datetime', 'Close'] + feature_cols])
@@ -449,6 +402,6 @@ def run_xgboost_forecast(horizon=365, window_size=1095, progress_callback=None, 
                     pass
                 
         history = history.vstack(row_df)
-        future_rows.append({"Datetime": next_datetime.strftime("%Y-%m-%d %H:%M:%S"), "prediction_real": pred_real})
+        future_rows.append({"Datetime": next_datetime.strftime("%Y-%m-%d %H:%M:%S"), "prediction": pred_real})
         last_datetime = next_datetime
-    return future_rows, metrics
+    return future_rows

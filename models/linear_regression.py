@@ -2,7 +2,6 @@ import os
 import joblib
 import polars as pl
 from sklearn.linear_model import LinearRegression
-from sklearn.metrics import mean_absolute_error, mean_squared_error
 from core import logger
 from .base_model import BaseModel
 
@@ -14,7 +13,8 @@ class LinearRegressionModel(BaseModel):
         super().__init__()
         # Explicitly set fit_intercept=True for more realistic rolling forecast
         self.model = LinearRegression(fit_intercept=True)
-        self.model_path = model_path or os.path.join(os.path.dirname(__file__), '..', 'data', 'models', 'linear_regression_model.pkl')
+        default_model_path = os.path.join(os.path.dirname(__file__), '..', 'data', 'models', 'linear_regression_model.pkl')
+        self.model_path = os.path.abspath(model_path or default_model_path)
         self.feature_cols = None
 
     def fit(self, df: pl.DataFrame):

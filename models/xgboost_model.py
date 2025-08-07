@@ -11,7 +11,8 @@ class XGBoostModel:
     
     def __init__(self, features_path, model_path=None, target_col='Close', feature_cols=None, params=None):
         self.features_path = features_path
-        self.model_path = model_path or os.path.join(os.path.dirname(__file__), '..', 'data', 'models', 'xgb_model.pkl')
+        default_model_path = os.path.join(os.path.dirname(__file__), '..', 'data', 'models', 'xgb_model.pkl')
+        self.model_path = os.path.abspath(model_path or default_model_path)
         self.target_col = target_col
         self.feature_cols = feature_cols  # If None, will infer from data
         self.params = params or {

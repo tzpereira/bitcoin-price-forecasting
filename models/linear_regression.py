@@ -39,7 +39,7 @@ class LinearRegressionModel(BaseModel):
     def predict(self, X: pl.DataFrame) -> pl.DataFrame:
         if not self.is_fitted:
             raise ValueError("Model must be fitted before calling predict().")
-        # Garante que as features estejam corretas
+        # Ensure X has the same features as the model was trained on
         X_np = X.select(self.feature_cols).to_numpy()
         preds = self.model.predict(X_np)
         return pl.DataFrame({"prediction": preds})

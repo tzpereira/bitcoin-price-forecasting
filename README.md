@@ -2,6 +2,8 @@
 
 A robust pipeline for Bitcoin price forecasting using Machine Learning models ( XGBoost and Linear Regression) with advanced feature engineering and a 100% Polars/Numpy data pipeline.
 
+![alt text](./public/image/bitcoin_price_forecasting.png)
+
 ## Overview
 
 This project implements a complete workflow for Bitcoin price forecasting, including:
@@ -66,11 +68,15 @@ pip install -r requirements.txt
    ```bash
    pip install -r requirements.txt
    ```
-2. Generate features:
+2. Preprocess dataset:
+   ```bash
+   python data/preprocess_dataset.py
+   ```
+3. Generate features:
    ```bash
    python features/build_features.py
    ```
-3. Train a model (example: XGBoost):
+4. Train a model (example: XGBoost):
    ```bash
    python -m models.xgboost_model
    ```
@@ -78,7 +84,7 @@ pip install -r requirements.txt
    ```bash
    python -m models.linear_regression
    ```
-4. Launch the dashboard:
+5. Launch the dashboard:
    ```bash
    streamlit run app/dashboard.py
    ```
@@ -99,7 +105,7 @@ pytest
 ---
 
 ## Disclaimer
-This is an experimental app, do not use it for real transactions, and if you do, it`s gonna be your full responsability.
+This application is for research and educational purposes only. It is not intended for financial advice or real-world trading. Use at your own risk. The author assumes no responsibility or liability for any financial losses or decisions made based on the results of this app.
 
 **Author:** Mateus P. da Silva  
 **License:** MIT

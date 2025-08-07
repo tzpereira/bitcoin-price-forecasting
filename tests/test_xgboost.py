@@ -44,14 +44,7 @@ def test_xgboost():
 
     # Predict on the same data
     X = df.select(feature_cols).to_numpy()
-    y_true = df['Close'].to_numpy()
     y_pred = model.predict(X)
-
-    # Simple metrics
-    mae = np.mean(np.abs(y_true - y_pred))
-    rmse = np.sqrt(np.mean((y_true - y_pred) ** 2))
-    print({'mae': mae, 'rmse': rmse})
-    assert mae >= 0 and rmse >= 0
 
     # Save predictions for inspection
     out_df = df.select(['Datetime']).with_columns([

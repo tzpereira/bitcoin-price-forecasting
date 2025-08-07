@@ -240,7 +240,7 @@ def test_linear_regression():
                         pass
             history = history.vstack(row_df)
             print(f"Horizon {n_forecast} | Step {i+1} | Prediction: {pred_real}")
-            future_rows.append({"Datetime": next_datetime.strftime("%Y-%m-%d %H:%M:%S"), "prediction_real": pred_real})
+            future_rows.append({"Datetime": next_datetime.strftime("%Y-%m-%d %H:%M:%S"), "prediction": pred_real})
             last_datetime = next_datetime
 
         # Save predictions for each horizon

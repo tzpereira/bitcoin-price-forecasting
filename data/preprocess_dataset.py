@@ -24,25 +24,24 @@ class DataPreprocessor:
         """ Preprocess the Bitcoin dataset by downloading it from Kaggle if not present,
         validating the timestamp column, and saving it in a processed format.
         """
-        
-        # Only download and check the CSV if it does not exist in the destination
-        if not os.path.exists(self.raw_path):
-            print("Downloading...")
-            kaggle_path = kagglehub.dataset_download("mczielinski/bitcoin-historical-data")
-            kaggle_csv = os.path.join(kaggle_path, "btcusd_1-min_data.csv")
-            if not os.path.exists(kaggle_csv):
-                # Search for the CSV in the Kaggle dataset directory
-                found = False
-                for root, files in os.walk(kaggle_path):
-                    if "btcusd_1-min_data.csv" in files:
-                        kaggle_csv = os.path.join(root, "btcusd_1-min_data.csv")
-                        found = True
-                        break
-                if not found:
-                    raise FileNotFoundError("btcusd_1-min_data.csv not found.")
-            shutil.copy2(kaggle_csv, self.raw_path)
-            print(f"File btcusd_1-min_data.csv copied to {self.raw_path}")
-            
+
+        # Always download and check the CSV
+        print("Updating and downloading data...")
+        kaggle_path = kagglehub.dataset_download("mczielinski/bitcoin-historical-data")
+        kaggle_csv = os.path.join(kaggle_path, "btcusd_1-min_data.csv")
+        if not os.path.exists(kaggle_csv):
+            # Search for the CSV in the Kaggle dataset directory
+            found = False
+            for root, files in os.walk(kaggle_path):
+                if "btcusd_1-min_data.csv" in files:
+                    kaggle_csv = os.path.join(root, "btcusd_1-min_data.csv")
+                    found = True
+                    break
+            if not found:
+                raise FileNotFoundError("btcusd_1-min_data.csv not found.")
+        shutil.copy2(kaggle_csv, self.raw_path)
+        print(f"File btcusd_1-min_data.csv updated in {self.raw_path}")
+
         # Start processing the dataset
         df = pl.read_csv(self.raw_path)
 

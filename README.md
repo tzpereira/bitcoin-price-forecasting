@@ -46,10 +46,10 @@ pip install -r requirements.txt
 
 
 1. **Data Preprocessing**
-   - Run `data/preprocess_dataset.py` to automatically download the raw data from Kaggle (using kagglehub) and preprocess it before feature engineering. No manual download required.
+   - Run `python -m data.preprocess_dataset` to automatically download the raw data from Kaggle (using kagglehub) and preprocess it before feature engineering. No manual download required.
 
 2. **Feature Engineering**
-   - Run `features/build_features.py` to generate `btc_features.parquet` from the processed data.
+   - Run `python -m features.build_features` to generate `btc_features.parquet` from the processed data.
    - Features include: lags, moving averages, volatility, returns, momentum, volume, calendar, halving events.
 
 3. **Models**
@@ -70,11 +70,11 @@ pip install -r requirements.txt
    ```
 2. Preprocess dataset:
    ```bash
-   python data/preprocess_dataset.py
+   python -m data.preprocess_dataset
    ```
 3. Generate features:
    ```bash
-   python features/build_features.py
+   python -m features.build_features
    ```
 4. Train a model (example: XGBoost):
    ```bash

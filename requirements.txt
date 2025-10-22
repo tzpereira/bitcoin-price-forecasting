@@ -1,8 +1,0 @@
-pytest
-polars
-numpy
-scikit-learn
-streamlit
-plotly
-xgboost
-kagglehub

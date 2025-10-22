@@ -1,11 +1,40 @@
 version: '3.8'
 services:
-  streamlit:
-    build: .
+  backend:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    ports:
+      - '8000:8000'
+    volumes:
+      - ./:/app:cached
+    environment:
+      - PYTHONUNBUFFERED=1
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8000/health || exit 1"]
+      interval: 10s
+      timeout: 2s
+      retries: 10
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: .
+      dockerfile: frontend/Dockerfile
     ports:
       - '8501:8501'
     volumes:
       - ./:/app:cached
     environment:
       - PYTHONUNBUFFERED=1
+      - IN_DOCKER=1
+      - BACKEND_HOST=http://backend:8000
+    depends_on:
+      - backend
     restart: unless-stopped
+
+ 
+
+networks:
+  default:
+    driver: bridge

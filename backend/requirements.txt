@@ -1,0 +1,8 @@
+pytest
+polars
+numpy
+scikit-learn
+xgboost
+fastapi
+uvicorn[standard]
+kagglehub

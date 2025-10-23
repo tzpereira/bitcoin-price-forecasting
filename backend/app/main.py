@@ -1,13 +1,14 @@
 import os
 import subprocess
 from fastapi import FastAPI
-from backend.routes import health, forecast, data
+from backend.routes import health, forecast, data, forecasts
 
 app = FastAPI(title="Bitcoin Forecasting Backend")
 
 app.include_router(health.router)
 app.include_router(forecast.router)
 app.include_router(data.router)
+app.include_router(forecasts.router)
 
 if __name__ == "__main__":
     # Ensure features file exists in production

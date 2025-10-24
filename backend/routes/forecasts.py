@@ -13,9 +13,14 @@ INDEX_NAME = "_runs.parquet"
 
 
 class ForecastRow(BaseModel):
-    Datetime: str
+    """A single forecast row.
+
+    Fields:
+    - target_date: required, YYYY-MM-DD (used as the sequence/key)
+    - prediction: required numeric value
+    """
+    target_date: str
     prediction: float
-    horizon_step: int
 
 
 class ForecastIn(BaseModel):
@@ -46,26 +51,14 @@ def post_forecast(payload: ForecastIn):
     if not rows:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="no rows provided")
 
-    new_df = (
-        pl.DataFrame(rows)
-        .with_columns([
-            pl.col("Datetime").cast(pl.Utf8),
-            pl.col("prediction").cast(pl.Float64),
-            pl.col("horizon_step").cast(pl.Int32),
-        ])
-        .with_columns([
-            pl.col("Datetime").str.slice(0, 10).alias("target_date"),
-            pl.lit(model).alias("model"),
-            pl.lit(run_date).alias("run_date"),
-        ])
-    )
+    new_rows = rows
 
     index_path = base_dir / INDEX_NAME
     meta = {
         "model": model,
         "run_date": run_date,
         "horizon": horizon,
-        "rows_count": new_df.height,
+        "rows_count": len(new_rows),
         "params": payload.params,
     }
 
@@ -77,11 +70,11 @@ def post_forecast(payload: ForecastIn):
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
 
     try:
-        merge_into_current(model, run_date, new_df, str(base_dir))
+        merge_into_current(model, run_date, new_rows, str(base_dir))
     except Exception as e:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
 
-    return {"model": model, "run_date": run_date, "rows_written": new_df.height}
+    return {"model": model, "run_date": run_date, "rows_written": len(new_rows)}
 
 
 @router.get("/forecasts")

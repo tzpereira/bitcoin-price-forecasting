@@ -5,7 +5,6 @@ import streamlit as st
 import polars as pl
 import plotly.graph_objects as go
 import requests
-import json
 
 def show_dashboard():
     st.set_page_config(layout="wide")
@@ -65,30 +64,45 @@ def show_dashboard():
     st.markdown("<hr style='border:1px solid #232323; margin:1.5em 0 1.5em 0;'>", unsafe_allow_html=True)
 
     if run_forecast:
-        # Determine backend host: inside docker-compose the service name is 'backend'; locally use localhost
         backend_host = os.environ.get("BACKEND_HOST", "http://localhost:8000")
         if os.environ.get("IN_DOCKER") == "1":
-            backend_host = os.environ.get("BACKEND_HOST", "http://backend:8000")
+            backend_host = os.environ.get("BACKEND_HOST", "http://localhost:8000")
 
-        payload = {"model": "linear" if selected_model == "Linear Regression" else "xgboost", "horizon": int(horizon)}
+        model_api = "linear" if selected_model == "Linear Regression" else "xgboost"
+        payload = {
+            "model": model_api,
+            "horizon": int(horizon),
+            "params": {"window_size": int(window_size)},
+            "rows": []
+        }
 
-        with st.spinner("Running forecast on backend..."):
+        with st.spinner("Running forecast..."):
             try:
                 resp = requests.post(f"{backend_host}/forecast", json=payload, timeout=600)
                 resp.raise_for_status()
                 data = resp.json()
-                future_rows = data.get("predictions", [])
             except requests.exceptions.RequestException as e:
-                st.error(f"Failed to get forecast from backend: {e}")
+                st.error(f"Failed to request forecast from backend: {e}")
                 return
 
-        df_pred = pl.DataFrame(future_rows)
-        df_pred = df_pred.with_columns([
-            pl.col("Datetime").str.slice(0, 10).alias("Date"),
-            pl.col("prediction").round(2)
-        ])
+        # Fetch current model predictions
+        try:
+            forecast_resp = requests.get(f"{backend_host}/forecasts/current/{model_api}", timeout=60)
+            forecast_resp.raise_for_status()
+            forecast_json = forecast_resp.json().get("rows", [])
+            if not forecast_json:
+                st.error("No current predictions found.")
+                return
+            df_pred = pl.DataFrame(forecast_json)
+            df_pred = df_pred.with_columns([
+                pl.col("target_date").alias("Date"),
+                pl.col("prediction").round(2)
+            ])
+        except requests.exceptions.RequestException as e:
+            st.error(f"Failed to fetch current predictions from backend: {e}")
+            return
 
-        # Load historical data from backend
+        # Load historical data (keeps unchanged)
         try:
             hist_resp = requests.get(f"{backend_host}/data", timeout=60)
             hist_resp.raise_for_status()

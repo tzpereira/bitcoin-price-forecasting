@@ -6,8 +6,12 @@ services:
       dockerfile: backend/Dockerfile
     ports:
       - '8000:8000'
+    dns:
+      - 8.8.8.8
+      - 1.1.1.1
     volumes:
-      - ./:/app:cached
+      - ./backend/data:/app/backend/data
+      - ./backend/features:/app/backend/features
     environment:
       - PYTHONUNBUFFERED=1
     healthcheck:
@@ -32,8 +36,6 @@ services:
     depends_on:
       - backend
     restart: unless-stopped
-
- 
 
 networks:
   default:

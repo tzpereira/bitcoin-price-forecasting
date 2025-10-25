@@ -2,6 +2,7 @@ import os
 import datetime
 import polars as pl
 import numpy as np
+from backend.services.forecasts_storage import save_forecast_run
 from backend.models.linear_regression import LinearRegressionModel
 from backend.models.xgboost_model import XGBoostModel
 
@@ -201,6 +202,11 @@ def run_linear_regression_forecast(horizon=365, window_size=1095, progress_callb
         future_rows.append({"Datetime": next_datetime.strftime("%Y-%m-%d %H:%M:%S"), "prediction": pred_real})
         last_datetime = next_datetime
 
+    run_date = datetime.date.today().isoformat()
+    model = "linear"
+    save_forecast_run(model, run_date, horizon, [
+        {"target_date": row["Datetime"][:10], "prediction": row["prediction"]} for row in future_rows
+    ], params={"window_size": window_size})
     return future_rows
 
 def run_xgboost_forecast(horizon=365, window_size=1095, progress_callback=None, model_params=None):
@@ -253,13 +259,6 @@ def run_xgboost_forecast(horizon=365, window_size=1095, progress_callback=None, 
                 break
             except ValueError:
                 continue
-
-    def safe_float(val):
-        if isinstance(val, pl.Series):
-            val = val.item()
-        if val is None or (isinstance(val, float) and np.isnan(val)):
-            return 0.0
-        return float(val)
 
     price_cols = ['Open', 'High', 'Low', 'Close']
     vol_col = 'Volume'
@@ -404,4 +403,10 @@ def run_xgboost_forecast(horizon=365, window_size=1095, progress_callback=None, 
         history = history.vstack(row_df)
         future_rows.append({"Datetime": next_datetime.strftime("%Y-%m-%d %H:%M:%S"), "prediction": pred_real})
         last_datetime = next_datetime
+
+    run_date = datetime.date.today().isoformat()
+    model = "xgboost"
+    save_forecast_run(model, run_date, horizon, [
+        {"target_date": row["Datetime"][:10], "prediction": row["prediction"]} for row in future_rows
+    ], params={"window_size": window_size, **(model_params or {})})
     return future_rows

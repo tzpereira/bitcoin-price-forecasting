@@ -144,3 +144,19 @@ def merge_into_current(model: str, run_date: str, new_df: Union[pl.DataFrame, li
 
     final_df = pl.concat([preserved, merged_rest], how="diagonal").sort("target_date")
     _atomic_write(final_df, current_path)
+
+
+def save_forecast_run(model: str, run_date: str, horizon: int, rows: list[dict], params: dict = None, force: bool = False):
+    """Save forecast run metadata and predictions to disk."""
+    base_dir = Path(__file__).resolve().parent.parent / "data" / "forecasts"
+    base_dir.mkdir(parents=True, exist_ok=True)
+    index_path = base_dir / "_runs.parquet"
+    metadata = {
+        "model": model,
+        "run_date": run_date,
+        "horizon": horizon,
+        "rows_count": len(rows),
+        "params": params,
+    }
+    upsert_run_metadata(str(index_path), metadata, force=force)
+    merge_into_current(model, run_date, rows, str(base_dir))

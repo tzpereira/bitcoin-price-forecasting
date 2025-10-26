@@ -8,26 +8,24 @@ def get_latest_history():
     """
     Search for latest data and, if necessary, trigger data update process.
     """
-    features_path = os.path.abspath(FEATURES_DATA_PATH)
     yesterday = (datetime.now(timezone.utc) - timedelta(days=1)).strftime("%Y-%m-%d")
     needs_update = False
 
-    if not os.path.exists(features_path):
+    if not os.path.exists(FEATURES_DATA_PATH):
         needs_update = True
     else:
         try:
-            df = pl.read_parquet(features_path)
-            last_date = df.select(pl.col("Datetime").str.slice(0, 10)).max()[0, 0]
+            df = pl.read_parquet(FEATURES_DATA_PATH)
+            last_date = df.select(pl.col("Datetime").cast(pl.Utf8).str.slice(0, 10)).max()[0, 0]
             
             if last_date not in [yesterday]:
                 needs_update = True
-                
         except Exception as e:
             needs_update = True
 
     if needs_update:
-        ensure_features(features_path)
-        df = pl.read_parquet(features_path)
+        ensure_features()
+        df = pl.read_parquet(FEATURES_DATA_PATH)
 
     df = df.with_columns([
         pl.col("Datetime").cast(pl.Utf8).str.slice(0, 10).alias("Date")
@@ -38,7 +36,7 @@ def get_latest_history():
     
     return {"history": history}
 
-def ensure_features(features_path):
+def ensure_features():
     """
     Kaggle data download and feature engineering.
     Remove intermediate files.
@@ -49,9 +47,9 @@ def ensure_features(features_path):
     subprocess.run(["python", "-m", "backend.features.build_features"], check=True)
     
     # Remove intermediate files
-    raw_path = os.path.abspath(os.path.join(os.path.dirname(features_path), '../raw/btcusd_1-min_data.csv'))
-    processed_path = os.path.abspath(os.path.join(os.path.dirname(features_path), 'btc_data_processed.parquet'))
-    
+    raw_path = os.path.abspath(os.path.join(os.path.dirname(FEATURES_DATA_PATH), '../raw/btcusd_1-min_data.csv'))
+    processed_path = os.path.abspath(os.path.join(os.path.dirname(FEATURES_DATA_PATH), 'btc_data_processed.parquet'))
+
     for f in [raw_path, processed_path]:
         if os.path.exists(f):
             try:

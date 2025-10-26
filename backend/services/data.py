@@ -2,7 +2,6 @@ import os
 import subprocess
 import polars as pl
 from datetime import datetime, timezone, timedelta
-from backend.utils.timer import timer
 from backend.services.forecast_service import FEATURES_DATA_PATH
 
 def get_latest_history():
@@ -46,14 +45,8 @@ def ensure_features(features_path):
     """
     print("[DATA SERVICE] Downloading data...")
     
-    start_time = timer()
-    
     subprocess.run(["python", "-m", "backend.data.preprocess_dataset"], check=True)
     subprocess.run(["python", "-m", "backend.features.build_features"], check=True)
-    
-    end_time = timer()
-    
-    print(f"[DATA SERVICE] Data download and processing completed in {end_time - start_time:.2f} seconds.")
     
     # Remove intermediate files
     raw_path = os.path.abspath(os.path.join(os.path.dirname(features_path), '../raw/btcusd_1-min_data.csv'))

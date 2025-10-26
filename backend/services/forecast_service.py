@@ -199,7 +199,10 @@ def run_linear_regression_forecast(horizon=365, window_size=1095, progress_callb
                     pass
 
         history = history.vstack(row_df)
-        future_rows.append({"Datetime": next_datetime.strftime("%Y-%m-%d %H:%M:%S"), "prediction": pred_real})
+        future_rows.append({
+            "Datetime": next_datetime.strftime("%Y-%m-%d %H:%M:%S"),
+            "prediction": float(pred_real)
+        })
         last_datetime = next_datetime
 
     run_date = datetime.date.today().isoformat()
@@ -213,7 +216,6 @@ def run_xgboost_forecast(horizon=365, window_size=1095, progress_callback=None, 
     """
     XGBoost forecast for Bitcoin prices. Trains once, then rolls forward updating features for each step.
     """
-
     df = pl.read_parquet(FEATURES_DATA_PATH)
     feature_cols = [col for col in df.columns if col not in ['Datetime', 'Timestamp', 'Close']]
     all_cols = ['Datetime'] + feature_cols + ['Close']
@@ -227,21 +229,42 @@ def run_xgboost_forecast(horizon=365, window_size=1095, progress_callback=None, 
         nan_cols = [col for idx, col in enumerate(numeric_cols) if np.isnan(X_np[:, idx]).any()]
         raise AssertionError(f"There are still NaNs in numeric features: {nan_cols}")
 
-    model = XGBoostModel(
-        features_path=FEATURES_DATA_PATH,
-        model_path=XGBOOST_MODEL_PATH,
-        target_col='Close',
-        feature_cols=numeric_cols,
-        params=model_params or {
-            'n_estimators': 200,
-            'max_depth': 5,
-            'learning_rate': 0.05,
-            'subsample': 0.8,
-            'colsample_bytree': 0.8,
-            'random_state': 42,
-        }
-    )
-    
+    # If the model does not exist, train and save it
+    if not os.path.exists(XGBOOST_MODEL_PATH):
+        from backend.models.xgboost_model import XGBoostModel
+        model = XGBoostModel(
+            features_path=FEATURES_DATA_PATH,
+            model_path=XGBOOST_MODEL_PATH,
+            target_col='Close',
+            feature_cols=numeric_cols,
+            params=model_params or {
+                'n_estimators': 200,
+                'max_depth': 5,
+                'learning_rate': 0.05,
+                'subsample': 0.8,
+                'colsample_bytree': 0.8,
+                'random_state': 42,
+            }
+        )
+        model.fit()
+    else:
+        from backend.models.xgboost_model import XGBoostModel
+        model = XGBoostModel(
+            features_path=FEATURES_DATA_PATH,
+            model_path=XGBOOST_MODEL_PATH,
+            target_col='Close',
+            feature_cols=numeric_cols,
+            params=model_params or {
+                'n_estimators': 200,
+                'max_depth': 5,
+                'learning_rate': 0.05,
+                'subsample': 0.8,
+                'colsample_bytree': 0.8,
+                'random_state': 42,
+            }
+        )
+        model.load()
+
     # Prepare rolling forecast
     df_raw = pl.read_parquet(FEATURES_DATA_PATH)
     df_raw = df_raw.select([col for col in df_raw.columns if col in ['Datetime', 'Close'] + feature_cols])
@@ -401,7 +424,10 @@ def run_xgboost_forecast(horizon=365, window_size=1095, progress_callback=None, 
                     pass
                 
         history = history.vstack(row_df)
-        future_rows.append({"Datetime": next_datetime.strftime("%Y-%m-%d %H:%M:%S"), "prediction": pred_real})
+        future_rows.append({
+            "Datetime": next_datetime.strftime("%Y-%m-%d %H:%M:%S"),
+            "prediction": float(pred_real)
+        })
         last_datetime = next_datetime
 
     run_date = datetime.date.today().isoformat()

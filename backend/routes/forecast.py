@@ -1,3 +1,4 @@
+import traceback
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from typing import Optional
@@ -20,4 +21,4 @@ def forecast(req: ForecastRequest):
             rows = forecast_service.run_xgboost_forecast(horizon=req.horizon)
         return {"predictions": rows}
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail={"error": str(e), "traceback": traceback.format_exc()})

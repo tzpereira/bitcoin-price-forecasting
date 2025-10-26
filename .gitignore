@@ -206,4 +206,7 @@ marimo/_static/
 marimo/_lsp/
 __marimo__/
 
-/backend/data
+/backend/data/raw
+/backend/data/processed
+/backend/data/forecasts
+/backend/data/models

@@ -51,113 +51,94 @@ def show_dashboard():
         st.markdown("<hr style='border:1px solid #232323; margin:1.5em 0 1.5em 0;'>", unsafe_allow_html=True)
         st.markdown("<h3 style='text-align:left;; margin-bottom:2.2em; color:#FAFAFA;'>Models & Parameters</h3>", unsafe_allow_html=True)
 
-        col1, col2, col3 = st.columns([1, 1, 1])
-        with col1:
-            selected_model = st.selectbox("Model", ["Linear Regression", "XGBoost"], index=0)
-        with col2:
-            horizon = st.number_input("Forecast horizon (days)", min_value=1, max_value=1095, value=180, step=1)
-        with col3:
-            window_size = st.number_input("Historical window (days)", min_value=30, max_value=3650, value=365, step=1)
-            
-        run_forecast = st.button("Run Forecast")
+        selected_model = st.selectbox("Model", ["Linear Regression", "XGBoost"], index=0)
+        model_api = "linear" if selected_model == "Linear Regression" else "xgboost"
+        horizon = 180
 
     st.markdown("<hr style='border:1px solid #232323; margin:1.5em 0 1.5em 0;'>", unsafe_allow_html=True)
 
-    if run_forecast:
+    backend_host = os.environ.get("BACKEND_HOST", "http://localhost:8000")
+    if os.environ.get("IN_DOCKER") == "1":
         backend_host = os.environ.get("BACKEND_HOST", "http://localhost:8000")
-        if os.environ.get("IN_DOCKER") == "1":
-            backend_host = os.environ.get("BACKEND_HOST", "http://localhost:8000")
 
-        model_api = "linear" if selected_model == "Linear Regression" else "xgboost"
-        payload = {
-            "model": model_api,
-            "horizon": int(horizon),
-            "params": {"window_size": int(window_size)},
-            "rows": []
-        }
-
-        with st.spinner("Running forecast..."):
-            try:
-                resp = requests.post(f"{backend_host}/forecast", json=payload, timeout=600)
-                resp.raise_for_status()
-                data = resp.json()
-            except requests.exceptions.RequestException as e:
-                st.error(f"Failed to request forecast from backend: {e}")
-                return
-
-        # Fetch current model predictions
-        try:
+    # Fetch current forecasts for the model
+    try:
+        forecast_resp = requests.get(f"{backend_host}/forecasts/current/{model_api}", timeout=60)
+        if forecast_resp.status_code == 404:
+            # If forecast does not exist, trigger calculation
+            calc_resp = requests.post(f"{backend_host}/forecast", json={"model": model_api, "horizon": horizon}, timeout=120)
+            calc_resp.raise_for_status()
             forecast_resp = requests.get(f"{backend_host}/forecasts/current/{model_api}", timeout=60)
-            forecast_resp.raise_for_status()
-            forecast_json = forecast_resp.json().get("rows", [])
-            if not forecast_json:
-                st.error("No current predictions found.")
-                return
-            df_pred = pl.DataFrame(forecast_json)
-            df_pred = df_pred.with_columns([
-                pl.col("target_date").alias("Date"),
-                pl.col("prediction").round(2)
-            ])
-        except requests.exceptions.RequestException as e:
-            st.error(f"Failed to fetch current predictions from backend: {e}")
+            
+        forecast_resp.raise_for_status()
+        forecast_json = forecast_resp.json().get("rows", [])
+        if not forecast_json:
+            st.error("No forecast returned from backend.")
             return
+        df_pred = pl.DataFrame(forecast_json)
+        df_pred = df_pred.with_columns([
+            pl.col("target_date").alias("Date"),
+            pl.col("prediction").round(2)
+        ])
+        # Filter for the next 180 days
+        df_pred = df_pred.sort("Date").head(horizon)
+    except requests.exceptions.RequestException as e:
+        st.error(f"Failed to load forecasts from backend: {e}")
+        return
 
-        # Load historical data (keeps unchanged)
-        try:
-            hist_resp = requests.get(f"{backend_host}/data", timeout=60)
-            hist_resp.raise_for_status()
-            hist_json = hist_resp.json().get("history", [])
-            if not hist_json:
-                st.error("No historical data returned from backend.")
-                return
-            df_hist = pl.DataFrame(hist_json)
-        except requests.exceptions.RequestException as e:
-            st.error(f"Failed to load historical data from backend: {e}")
+    # Load historical data (kept the same)
+    try:
+        hist_resp = requests.get(f"{backend_host}/data", timeout=60)
+        hist_resp.raise_for_status()
+        hist_json = hist_resp.json().get("history", [])
+        if not hist_json:
+            st.error("No historical data returned from backend.")
             return
-        
-        # Plot
-        fig = go.Figure()
-        fig.add_trace(go.Scatter(
-            x=df_hist["Date"],
-            y=df_hist["Close"],
-            mode="lines",
-            name="Historical",
-            line=dict(color="#3498db", width=3)
-        ))
-        forecast_dates = df_pred["Date"].to_list()
-        forecast_values = df_pred["prediction"].to_list()
-        last_real_date = df_hist["Date"][-1]
-        last_real_value = df_hist["Close"][-1]
-        forecast_dates = [last_real_date] + forecast_dates
-        forecast_values = [last_real_value] + forecast_values
-        fig.add_trace(go.Scatter(
-            x=forecast_dates,
-            y=forecast_values,
-            mode="lines+markers",
-            name="Forecast",
-            line=dict(color="#FF9900", width=3)
-        ))
-        fig.update_layout(
-            xaxis_title="Date",
-            yaxis_title="Predicted Price (USD)",
-            plot_bgcolor="#181818",
-            paper_bgcolor="#181818",
-            font=dict(color="#FAFAFA"),
-            hovermode="x unified",
-            margin=dict(l=10, r=10, t=10, b=10),
-            legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1)
-        )
-        st.markdown("<h3 style='color:#FF9900; margin-bottom:0.5em;'>Results</h3>", unsafe_allow_html=True)
-        st.plotly_chart(fig, use_container_width=True)
+        df_hist = pl.DataFrame(hist_json)
+    except requests.exceptions.RequestException as e:
+        st.error(f"Failed to load historical data from backend: {e}")
+        return
 
-        # Forecast table
-        st.markdown(f"<h4 style='color:#FF9900; margin-top:2em; margin-bottom:0.5em;'>Forecast Table <span style='font-size:0.8em; color:#FAFAFA;'>(Next {horizon} Days)</span></h4>", unsafe_allow_html=True)
-        st.dataframe(
-            df_pred.select(["Date", "prediction"]).rename({"prediction": "Predicted Price"}),
-            use_container_width=True,
-            hide_index=True,
-            height=420
-        )
+    # Plot
+    fig = go.Figure()
+    fig.add_trace(go.Scatter(
+        x=df_hist["Date"],
+        y=df_hist["Close"],
+        mode="lines",
+        name="Historical",
+        line=dict(color="#3498db", width=3)
+    ))
+    forecast_dates = df_pred["Date"].to_list()
+    forecast_values = df_pred["prediction"].to_list()
+
+    fig.add_trace(go.Scatter(
+        x=forecast_dates,
+        y=forecast_values,
+        mode="lines+markers",
+        name="Forecast",
+        line=dict(color="#FF9900", width=3)
+    ))
+    fig.update_layout(
+        xaxis_title="Date",
+        yaxis_title="Predicted Price (USD)",
+        plot_bgcolor="#181818",
+        paper_bgcolor="#181818",
+        font=dict(color="#FAFAFA"),
+        hovermode="x unified",
+        margin=dict(l=10, r=10, t=10, b=10),
+        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1)
+    )
+    st.markdown("<h3 style='color:#FF9900; margin-bottom:0.5em;'>Results</h3>", unsafe_allow_html=True)
+    st.plotly_chart(fig, use_container_width=True)
+
+    # Forecast table
+    st.markdown(f"<h4 style='color:#FF9900; margin-top:2em; margin-bottom:0.5em;'>Forecast Table <span style='font-size:0.8em; color:#FAFAFA;'>(Next {horizon} Days)</span></h4>", unsafe_allow_html=True)
+    st.dataframe(
+        df_pred.select(["Date", "prediction"]).rename({"prediction": "Predicted Price"}),
+        use_container_width=True,
+        hide_index=True,
+        height=420
+    )
 
     # Footer
     st.markdown("""

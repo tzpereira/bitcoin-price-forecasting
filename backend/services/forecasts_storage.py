@@ -1,10 +1,10 @@
 import os
 import logging
 import tempfile
+import polars as pl
 from pathlib import Path
 from typing import Dict, Any, Union
-
-import polars as pl
+from datetime import datetime, timedelta
 
 logger = logging.getLogger(__name__)
 
@@ -111,6 +111,11 @@ def merge_into_current(model: str, run_date: str, new_df: Union[pl.DataFrame, li
         add_cols.append(pl.lit(run_date).alias("run_date"))
     if add_cols:
         new_df = new_df.with_columns(add_cols)
+
+    # Only keep new predictions for target_date >= tomorrow
+    today = datetime.now().date()
+    tomorrow = today + timedelta(days=1)
+    new_df = new_df.filter(pl.col("target_date").str.strptime(pl.Date, "%Y-%m-%d") >= pl.lit(tomorrow))
 
     # Now safe to build casts only for columns that exist in the DataFrame
     cols_to_cast = []

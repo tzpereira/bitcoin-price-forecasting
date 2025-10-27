@@ -1,10 +1,12 @@
 import os
 import sys
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+from datetime import datetime, timedelta
 import streamlit as st
 import polars as pl
 import plotly.graph_objects as go
 import requests
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+
 
 def show_dashboard():
     st.set_page_config(layout="wide")
@@ -47,13 +49,15 @@ def show_dashboard():
 
     st.markdown("<h1 style='color:#FF9900; text-align:center; margin-bottom:0.1em; letter-spacing:0.5px; font-size:5em; font-weight: bold;'>₿itcoin Price Forecasting</h1>", unsafe_allow_html=True)
 
-    with st.container():
-        st.markdown("<hr style='border:1px solid #232323; margin:1.5em 0 1.5em 0;'>", unsafe_allow_html=True)
-        st.markdown("<h3 style='text-align:left;; margin-bottom:2.2em; color:#FAFAFA;'>Models & Parameters</h3>", unsafe_allow_html=True)
-
-        selected_model = st.selectbox("Model", ["Linear Regression", "XGBoost"], index=0)
-        model_api = "linear" if selected_model == "Linear Regression" else "xgboost"
-        horizon = 180
+    with st.expander("Model Selection & Comparison", expanded=True):
+        compare_mode = st.checkbox("Compare models side by side", value=False)
+        if compare_mode:
+            selected_models = st.multiselect("Select models to compare", ["Linear Regression", "XGBoost"], default=["Linear Regression", "XGBoost"])
+            horizon = 180
+        else:
+            selected_model = st.selectbox("Model", ["Linear Regression", "XGBoost"], index=0)
+            selected_models = [selected_model]
+            horizon = 180
 
     st.markdown("<hr style='border:1px solid #232323; margin:1.5em 0 1.5em 0;'>", unsafe_allow_html=True)
 
@@ -61,30 +65,47 @@ def show_dashboard():
     if os.environ.get("IN_DOCKER") == "1":
         backend_host = os.environ.get("BACKEND_HOST", "http://localhost:8000")
 
-    # Fetch current forecasts for the model
-    try:
-        forecast_resp = requests.get(f"{backend_host}/forecasts/current/{model_api}", timeout=60)
-        if forecast_resp.status_code == 404:
-            # If forecast does not exist, trigger calculation
-            calc_resp = requests.post(f"{backend_host}/forecast", json={"model": model_api, "horizon": horizon}, timeout=120)
-            calc_resp.raise_for_status()
+    # Fetch and plot forecasts for each selected model
+    forecast_dfs = {}
+    for model_name in selected_models:
+        model_api = "linear" if model_name == "Linear Regression" else "xgboost"
+        try:
             forecast_resp = requests.get(f"{backend_host}/forecasts/current/{model_api}", timeout=60)
-            
-        forecast_resp.raise_for_status()
-        forecast_json = forecast_resp.json().get("rows", [])
-        if not forecast_json:
-            st.error("No forecast returned from backend.")
-            return
-        df_pred = pl.DataFrame(forecast_json)
-        df_pred = df_pred.with_columns([
-            pl.col("target_date").alias("Date"),
-            pl.col("prediction").round(2)
-        ])
-        # Filter for the next 180 days
-        df_pred = df_pred.sort("Date").head(horizon)
-    except requests.exceptions.RequestException as e:
-        st.error(f"Failed to load forecasts from backend: {e}")
-        return
+            trigger_forecast = False
+            if forecast_resp.status_code == 404:
+                trigger_forecast = True
+            else:
+                forecast_resp.raise_for_status()
+                forecast_json = forecast_resp.json().get("rows", [])
+                if forecast_json:
+                    today = datetime.now().date()
+                    tomorrow = today + timedelta(days=1)
+                    tomorrow_row = next((row for row in forecast_json if datetime.strptime(row["target_date"], "%Y-%m-%d").date() == tomorrow), None)
+                    if tomorrow_row:
+                        run_date = datetime.strptime(tomorrow_row["run_date"], "%Y-%m-%d").date()
+                        if run_date != today:
+                            trigger_forecast = True
+                else:
+                    trigger_forecast = True
+            if trigger_forecast:
+                calc_resp = requests.post(f"{backend_host}/forecast", json={"model": model_api, "horizon": horizon}, timeout=120)
+                calc_resp.raise_for_status()
+                forecast_resp = requests.get(f"{backend_host}/forecasts/current/{model_api}", timeout=60)
+                forecast_resp.raise_for_status()
+            forecast_json = forecast_resp.json().get("rows", [])
+            if not forecast_json:
+                st.error(f"No forecast returned from backend for {model_name}.")
+                continue
+            df_pred = pl.DataFrame(forecast_json)
+            df_pred = df_pred.with_columns([
+                pl.col("target_date").alias("Date"),
+                pl.col("prediction").round(2)
+            ])
+            df_pred = df_pred.sort("Date").head(horizon)
+            forecast_dfs[model_name] = df_pred
+        except requests.exceptions.RequestException as e:
+            st.error(f"Failed to load forecasts from backend for {model_name}: {e}")
+            continue
 
     # Load historical data (kept the same)
     try:
@@ -108,16 +129,20 @@ def show_dashboard():
         name="Historical",
         line=dict(color="#3498db", width=3)
     ))
-    forecast_dates = df_pred["Date"].to_list()
-    forecast_values = df_pred["prediction"].to_list()
-
-    fig.add_trace(go.Scatter(
-        x=forecast_dates,
-        y=forecast_values,
-        mode="lines+markers",
-        name="Forecast",
-        line=dict(color="#FF9900", width=3)
-    ))
+    
+    colors = {"Linear Regression": "#FF9900", "XGBoost": "#00C853"}
+    
+    for model_name, df_pred in forecast_dfs.items():
+        forecast_dates = df_pred["Date"].to_list()
+        forecast_values = df_pred["prediction"].to_list()
+        fig.add_trace(go.Scatter(
+            x=forecast_dates,
+            y=forecast_values,
+            mode="lines+markers",
+            name=f"Forecast - {model_name}",
+            line=dict(color=colors.get(model_name, "#FF9900"), width=3)
+        ))
+        
     fig.update_layout(
         xaxis_title="Date",
         yaxis_title="Predicted Price (USD)",
@@ -131,14 +156,16 @@ def show_dashboard():
     st.markdown("<h3 style='color:#FF9900; margin-bottom:0.5em;'>Results</h3>", unsafe_allow_html=True)
     st.plotly_chart(fig, use_container_width=True)
 
-    # Forecast table
-    st.markdown(f"<h4 style='color:#FF9900; margin-top:2em; margin-bottom:0.5em;'>Forecast Table <span style='font-size:0.8em; color:#FAFAFA;'>(Next {horizon} Days)</span></h4>", unsafe_allow_html=True)
-    st.dataframe(
-        df_pred.select(["Date", "prediction"]).rename({"prediction": "Predicted Price"}),
-        use_container_width=True,
-        hide_index=True,
-        height=420
-    )
+    # Forecast tables inside a single expander
+    with st.expander("Forecast Tables", expanded=False):
+        for model_name, df_pred in forecast_dfs.items():
+            st.markdown(f"<h4 style='font-size:0.8em; color:#FAFAFA;'>(Next {horizon} Days, {model_name})</h4>", unsafe_allow_html=True)
+            st.dataframe(
+                df_pred.select(["Date", "prediction"]).rename({"prediction": "Predicted Price"}),
+                use_container_width=True,
+                hide_index=True,
+                height=300
+            )
 
     # Footer
     st.markdown("""

@@ -129,9 +129,7 @@ def show_dashboard():
         name="Historical",
         line=dict(color="#3498db", width=3)
     ))
-    
     colors = {"Linear Regression": "#FF9900", "XGBoost": "#00C853"}
-    
     for model_name, df_pred in forecast_dfs.items():
         forecast_dates = df_pred["Date"].to_list()
         forecast_values = df_pred["prediction"].to_list()
@@ -142,7 +140,6 @@ def show_dashboard():
             name=f"Forecast - {model_name}",
             line=dict(color=colors.get(model_name, "#FF9900"), width=3)
         ))
-        
     fig.update_layout(
         xaxis_title="Date",
         yaxis_title="Predicted Price (USD)",
@@ -155,6 +152,37 @@ def show_dashboard():
     )
     st.markdown("<h3 style='color:#FF9900; margin-bottom:0.5em;'>Results</h3>", unsafe_allow_html=True)
     st.plotly_chart(fig, use_container_width=True)
+
+    # --- METRICS CARDS ---
+    st.markdown("<div style='margin-bottom: 1.5em;'></div>", unsafe_allow_html=True)
+    def fetch_metrics(model_api, backend_host):
+        try:
+            resp = requests.get(f"{backend_host}/metrics/{model_api}", timeout=30)
+            if resp.status_code == 200:
+                return resp.json()
+        except Exception:
+            pass
+        return None
+
+    def render_metrics_cards(metrics_dict):
+        if not metrics_dict:
+            st.warning("No metrics available.")
+            return
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            st.metric("MAE", f"{metrics_dict['MAE']:.2f}")
+        with col2:
+            st.metric("RMSE", f"{metrics_dict['RMSE']:.2f}")
+        with col3:
+            mape_val = metrics_dict['MAPE']
+            st.metric("MAPE", f"{mape_val:.2f}%" if mape_val is not None else "-")
+
+    for model_name in selected_models:
+        model_api = "linear" if model_name == "Linear Regression" else "xgboost"
+        metrics = fetch_metrics(model_api, backend_host)
+        st.markdown(f"<h4 style='color:#FAFAFA; margin-bottom:0.2em;'>{model_name} Metrics (Yesterday)</h4>", unsafe_allow_html=True)
+        render_metrics_cards(metrics)
+        st.markdown("<div style='margin-bottom: 1.2em;'></div>", unsafe_allow_html=True)
 
     # Forecast tables inside a single expander
     with st.expander("Forecast Tables", expanded=False):

@@ -1,9 +1,13 @@
 import polars as pl
 import numpy as np
+from pathlib import Path
 from datetime import datetime, timedelta
 from fastapi import HTTPException
 from backend.services.data import get_latest_history
-from backend.services.forecasts_storage import _forecasts_dir
+
+def _forecasts_dir() -> Path:
+    """Return the directory used to store forecast files."""
+    return (Path(__file__).resolve().parent.parent / "data" / "forecasts").resolve()
 
 def calculate_metrics(model: str):
     """
@@ -15,8 +19,11 @@ def calculate_metrics(model: str):
     hist_row = next((row for row in history if row["Date"] == yesterday), None)
     if not hist_row:
         raise HTTPException(status_code=404, detail="No historical data for yesterday.")
+     
     actual = hist_row["Close"]
+    
     forecast_path = _forecasts_dir() / f"current_{model}.parquet"
+    
     if not forecast_path.exists():
         raise HTTPException(status_code=404, detail="No forecast found for this model.")
     df = pl.read_parquet(str(forecast_path))

@@ -101,6 +101,7 @@ def crossval_time_series(model_name: str = 'linear', n_splits: int = 5, random_s
             params=model_params
         )
         model.fit()
+        model.save()
 
     print(f"Cross-validation complete. Metrics saved to {metrics_path}.")
     print(f"Final model saved to {model.model_path}.")

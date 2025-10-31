@@ -65,6 +65,25 @@ bitcoin-price-forecasting/
 
 ---
 
+
+## Model Evaluation: Cross-Validation
+
+To robustly evaluate model performance, you can run time series cross-validation (K-Fold, TimeSeriesSplit) for both Linear Regression and XGBoost models. This splits the historical data into sequential train/test folds, trains the model on each fold, and saves the metrics (MAE, RMSE, MAPE) for each period.
+
+**How to run cross-validation:**
+
+```sh
+python backend/scripts/run_crossval.py linear
+# or
+python backend/scripts/run_crossval.py xgboost
+```
+
+This will generate a Parquet file with fold metrics in `backend/data/metrics/` and save the final trained model in `backend/data/models/`.
+
+Review the metrics to compare model performance and check for overfitting or data leakage before deploying or using the model for forecasting.
+
+---
+
 ## Main Endpoints (REST API)
 
 - `GET /health` — Healthcheck
@@ -99,17 +118,6 @@ bitcoin-price-forecasting/
 
 **Frontend:**
 - streamlit, plotly, requests, polars
-
----
-
-## Recent Features
-
-- Forecast persistence (API + Parquet, atomicity, merge policy)
-- Forecast vs real comparison panel, metrics (MAE, RMSE, MAPE)
-- Event agent (structure for event ingestion/analysis)
-- Monitoring and healthcheck
-- Unified Docker Compose build
-- Full modularization (easy to extend for new models or features)
 
 ---
 

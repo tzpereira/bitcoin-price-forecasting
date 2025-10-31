@@ -24,10 +24,8 @@ class LinearRegressionModel(BaseModel):
         X = df.select(self.feature_cols).to_numpy()
         y = df['Close'].to_numpy()
         self.model.fit(X, y)
-        self.last_X = X[-1:].copy()  # save last feature vector
         self.is_fitted = True
         logger.info(f"LinearRegressionModel fitted with {len(self.feature_cols)} features.")
-        self.save()
 
     def save(self):
         # Ensure the directory exists before saving
@@ -40,10 +38,17 @@ class LinearRegressionModel(BaseModel):
 
     def predict(self, X: pl.DataFrame) -> pl.DataFrame:
         if not self.is_fitted:
+            logger.error("Attempted to predict with an unfitted model.")
             raise ValueError("Model must be fitted before calling predict().")
+        # Check that all required features are present
+        missing = [col for col in self.feature_cols if col not in X.columns]
+        if missing:
+            logger.error(f"Missing features for prediction: {missing}")
+            raise ValueError(f"Missing features for prediction: {missing}")
         # Ensure X has the same features as the model was trained on
         X_np = X.select(self.feature_cols).to_numpy()
         preds = self.model.predict(X_np)
+        logger.info(f"Predicted {len(preds)} samples.")
         return pl.DataFrame({"prediction": preds})
 
 
@@ -68,3 +73,4 @@ if __name__ == "__main__":
     # Initialize and fit the Linear Regression model
     model = LinearRegressionModel()
     model.fit(df)
+    model.save()

@@ -36,18 +36,34 @@ class XGBoostModel:
         self.model = xgb.XGBRegressor(**self.params)
         self.model.fit(X, y)
         logger.info(f"XGBoost model trained on {len(X)} samples.")
-        self.save()
 
     def predict(self, X):
+        """
+        Predict using the trained XGBoost model.
+        Accepts either a polars DataFrame or a numpy array.
+        Checks feature consistency.
+        Returns a polars DataFrame for consistency with other models.
+        """
         if self.model is None:
-            self.load()
-        return self.model.predict(X)
+            logger.error("Attempted to predict with an uninitialized model.")
+            raise ValueError("Model must be trained or loaded before prediction.")
+        # Accept polars DataFrame or numpy array
+        if isinstance(X, pl.DataFrame):
+            missing = [col for col in self.feature_cols if col not in X.columns]
+            if missing:
+                logger.error(f"Missing features for prediction: {missing}")
+                raise ValueError(f"Missing features for prediction: {missing}")
+            X_np = X.select(self.feature_cols).to_numpy()
+        else:
+            X_np = X
+        preds = self.model.predict(X_np)
+        logger.info(f"Predicted {len(preds)} samples with XGBoost.")
+        return pl.DataFrame({"prediction": preds})
 
     def predict_from_file(self, features_path=None):
         features_path = features_path or self.features_path
         df = pl.read_parquet(features_path)
-        X = df.select(self.feature_cols).to_numpy()
-        return self.predict(X)
+        return self.predict(df)
 
     def save(self):
         # Ensure the directory exists before saving
@@ -80,9 +96,13 @@ if __name__ == "__main__":
 
     MODEL_PATH = os.path.join(MODELS_DIR, 'xgb_model.pkl')
 
+    # Load the features DataFrame
+    df = pl.read_parquet(FEATURES_PATH)
+
     # Initialize and train the XGBoost model
     model = XGBoostModel(
         features_path=FEATURES_PATH,
         model_path=MODEL_PATH
     )
     model.fit()
+    model.save()

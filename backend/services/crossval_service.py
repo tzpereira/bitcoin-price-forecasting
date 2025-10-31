@@ -40,20 +40,18 @@ def crossval_time_series(model_name: str = 'linear', n_splits: int = 5, random_s
     metrics = []
 
     for fold, (train_idx, test_idx) in enumerate(tscv.split(X)):
-        X_train, X_test = X[train_idx], X[test_idx]
-        y_train, y_test = y[train_idx], y[test_idx]
+        # Prepare training set: all columns
+        train_df = df[train_idx]
+        # Prepare test set: only features (never include 'Close')
+        test_features = df[test_idx].select(feature_cols)
+        y_test = df[test_idx]['Close'].to_numpy()
         train_dates = [dates[i] for i in train_idx]
         test_dates = [dates[i] for i in test_idx]
 
-        # Model selection
         if model_name == 'linear':
             model = LinearRegressionModel()
-            # Prepare Polars DataFrame for training
-            fit_df = pl.DataFrame({col: df[col].to_numpy()[train_idx] for col in df.columns})
-            model.fit(fit_df)
-            # Prepare DataFrame for prediction (exclude 'Close')
-            pred_df = pl.DataFrame({col: df[col].to_numpy()[test_idx] for col in df.columns if col != 'Close'})
-            y_pred = model.predict(pred_df)['prediction'].to_numpy()
+            model.fit(train_df)
+            y_pred = model.predict(test_features)['prediction'].to_numpy()
         elif model_name == 'xgboost':
             model = XGBoostModel(
                 features_path=FEATURES_DATA_PATH,
@@ -62,10 +60,9 @@ def crossval_time_series(model_name: str = 'linear', n_splits: int = 5, random_s
                 feature_cols=feature_cols,
                 params=model_params
             )
-            # Ensure model.model is initialized for cross-validation
             model.model = xgb.XGBRegressor(**(model_params or model.params))
-            model.model.fit(X_train, y_train)
-            y_pred = model.model.predict(X_test)
+            model.model.fit(train_df.select(feature_cols).to_numpy(), train_df['Close'].to_numpy())
+            y_pred = model.model.predict(test_features.to_numpy())
         else:
             raise ValueError(f"Unknown model: {model_name}")
 

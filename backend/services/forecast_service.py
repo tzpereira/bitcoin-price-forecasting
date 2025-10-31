@@ -297,10 +297,6 @@ def run_xgboost_forecast(horizon=365, window_size=1095, progress_callback=None, 
         next_datetime = last_datetime + timedelta(days=1)
         df_hist = history[-window_size:].clone()
         fit_cols = [col for col in df_hist.columns if col not in ['Datetime', 'Timestamp', 'Close'] and df_hist.schema[col] == pl.Float64]
-        fit_df = pl.DataFrame({col: df_hist[col] for col in ['Datetime'] + fit_cols + ['Close']})
-        model = LinearRegressionModel()
-        model.fit(fit_df)
-
         last_row = history[-1].to_dict()
         new_row = {}
 

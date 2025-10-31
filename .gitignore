@@ -210,3 +210,4 @@ __marimo__/
 /backend/data/processed
 /backend/data/forecasts
 /backend/data/models
+/backend/data/metrics

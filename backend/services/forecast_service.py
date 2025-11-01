@@ -15,6 +15,10 @@ XGBOOST_MODEL_PATH = os.path.join(
     os.path.dirname(__file__), '..', 'data', 'models', 'xgb_model.pkl'
 )
 
+SARIMAX_MODEL_PATH = os.path.join(
+    os.path.dirname(__file__), '..', 'data', 'models', 'sarimax_model.pkl'
+)
+
 def safe_float(val):
     if isinstance(val, pl.Series):
         val = val.item()
@@ -435,4 +439,44 @@ def run_xgboost_forecast(horizon=365, window_size=1095, progress_callback=None, 
     save_forecast_run(model, run_date, horizon, [
         {"target_date": row["Datetime"][:10], "prediction": row["prediction"]} for row in future_rows
     ], params={"window_size": window_size, **(model_params or {})})
+    return future_rows
+
+def run_sarimax_forecast(horizon=365, model_params=None):
+    """
+    SARIMAX forecast for Bitcoin prices. Trains (if needed) and produces an n-day forecast.
+    """
+    # Import locally to avoid top-level dependency issues
+    from backend.models.sarimax_model import SARIMAXModel
+
+    # If model file does not exist, fit from features and save
+    if not os.path.exists(SARIMAX_MODEL_PATH):
+        model = SARIMAXModel(
+            model_path=SARIMAX_MODEL_PATH,
+            order=(1, 1, 1),
+            seasonal_order=(0, 1, 1, 7)
+        )
+        
+        model.fit_from_file(FEATURES_DATA_PATH)
+        model.save()
+    else:
+        model = SARIMAXModel(model_path=SARIMAX_MODEL_PATH)
+        model.load()
+
+    # Produce forecast
+    df_forecast = model.predict(horizon)
+    # Ensure we have a list of dicts with Date and prediction
+    try:
+        rows = df_forecast.to_dicts()
+    except Exception:
+        # fallback: iterate rows
+        rows = [{"Date": r[0], "prediction": float(r[1])} for r in df_forecast.rows()]
+
+    future_rows = [{"target_date": r["Date"], "prediction": float(r["prediction"])} for r in rows]
+
+    run_date = date.today().isoformat()
+    save_forecast_run('sarimax', run_date, horizon, future_rows, params={
+        "order": getattr(model, 'order', None),
+        "seasonal_order": getattr(model, 'seasonal_order', None)
+    })
+
     return future_rows

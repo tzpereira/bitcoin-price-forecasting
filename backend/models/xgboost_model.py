@@ -1,7 +1,7 @@
 import os
+import joblib
 import polars as pl
 import xgboost as xgb
-import joblib
 from backend.core.logger import logger
 from backend.utils.timer import timer
 

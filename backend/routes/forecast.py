@@ -17,8 +17,10 @@ def forecast(req: ForecastRequest):
     try:
         if req.model == "linear":
             rows = forecast_service.run_linear_regression_forecast(horizon=req.horizon)
-        else:
+        elif req.model == "xgboost":
             rows = forecast_service.run_xgboost_forecast(horizon=req.horizon)
+        elif req.model == "sarimax":
+            rows = forecast_service.run_sarimax_forecast(horizon=req.horizon)
         return {"predictions": rows}
     except Exception as e:
         raise HTTPException(status_code=500, detail={"error": str(e), "traceback": traceback.format_exc()})

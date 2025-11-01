@@ -5,6 +5,7 @@ import xgboost as xgb
 from sklearn.model_selection import TimeSeriesSplit
 from backend.models.xgboost_model import XGBoostModel
 from backend.models.linear_regression import LinearRegressionModel
+from backend.models.sarimax_model import SARIMAXModel
 
 # Paths for data, metrics, and models
 FEATURES_DATA_PATH = os.path.join(
@@ -63,6 +64,38 @@ def crossval_time_series(model_name: str = 'linear', n_splits: int = 5, random_s
             model.model = xgb.XGBRegressor(**(model_params or model.params))
             model.model.fit(train_df.select(feature_cols).to_numpy(), train_df['Close'].to_numpy())
             y_pred = model.model.predict(test_features.to_numpy())
+        elif model_name == 'sarimax':
+            # SARIMAX works on the target series only (no features). Fit on train_df and forecast len(test_idx) steps.
+            model = SARIMAXModel()
+            model.fit(train_df)
+            steps = len(test_idx)
+            pred_df = model.predict(steps)
+
+            # Align predictions to test dates using YYYY-MM-DD strings
+            def _to_ymd(x):
+                from datetime import datetime, date
+                if isinstance(x, str):
+                    return x[:10]
+                if isinstance(x, datetime):
+                    return x.date().isoformat()
+                if isinstance(x, date):
+                    return x.isoformat()
+                try:
+                    return np.datetime_as_string(np.datetime64(x), unit='D')
+                except Exception:
+                    return str(x)[:10]
+
+            test_date_strs = [_to_ymd(d) for d in test_dates]
+            # build mapping from predicted dates to values
+            pred_map = {row['Date']: row['prediction'] for row in pred_df.to_dicts()}
+            y_pred = np.array([pred_map.get(dt, np.nan) for dt in test_date_strs], dtype=float)
+            # if any NaNs, trim to available overlap
+            if np.isnan(y_pred).any():
+                # fall back to simple length-based match if dates didn't align
+                if len(y_pred) != len(test_idx):
+                    min_len = min(len(y_pred), len(test_idx))
+                    y_pred = y_pred[:min_len]
+                    y_test = y_test[:min_len]
         else:
             raise ValueError(f"Unknown model: {model_name}")
 
@@ -101,6 +134,10 @@ def crossval_time_series(model_name: str = 'linear', n_splits: int = 5, random_s
             params=model_params
         )
         model.fit()
+        model.save()
+    elif model_name == 'sarimax':
+        model = SARIMAXModel(model_path=os.path.join(MODELS_DIR, 'sarimax_model.pkl'))
+        model.fit(df)
         model.save()
 
     print(f"Cross-validation complete. Metrics saved to {metrics_path}.")

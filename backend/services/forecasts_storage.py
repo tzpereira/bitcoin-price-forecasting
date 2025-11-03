@@ -1,4 +1,5 @@
 import os
+import json
 import logging
 import tempfile
 import polars as pl
@@ -54,28 +55,77 @@ def upsert_run_metadata(index_path: Union[str, Path], metadata: Dict[str, Any], 
     - If an existing record is found and `force=False`, raises FileExistsError.
     - If `force=True`, the existing record is replaced.
     """
+    # Read existing index safely
     df_idx = _read_index_safely(index_path)
 
     model, run_date = metadata["model"], metadata["run_date"]
 
-    has_existing = (
-        df_idx.filter((pl.col("model") == model) & (pl.col("run_date") == run_date)).height > 0
-        if not df_idx.is_empty()
-        else False
-    )
+    # Normalize params to a JSON string to avoid struct/field mismatches across runs
+    meta_copy = metadata.copy()
+    params_val = meta_copy.get("params")
+    try:
+        meta_copy["params"] = json.dumps(params_val) if params_val is not None else None
+    except Exception:
+        # Fallback: stringify
+        meta_copy["params"] = str(params_val) if params_val is not None else None
 
-    if has_existing and not force:
+    # If index is empty, just write the single-row DataFrame
+    if df_idx.is_empty():
+        _atomic_write(pl.DataFrame([meta_copy]), index_path)
+        return
+
+    # Otherwise, operate on Python list of dicts to avoid Polars struct schema issues
+    try:
+        existing_rows = df_idx.to_dicts()
+    except Exception:
+        # fallback: read rows via iteration
+        existing_rows = [row for row in df_idx.rows()]
+        # try to coerce into list of dicts if possible
+        if existing_rows and isinstance(existing_rows[0], tuple):
+            # cannot recover column names reliably, so raise
+            raise RuntimeError("Existing runs index has unexpected format and cannot be merged safely.")
+
+    # Normalize existing rows: ensure 'params' is a JSON string and primitive types
+    normalized_rows = []
+    for r in existing_rows:
+        nr = dict(r) if isinstance(r, dict) else dict(r)
+        p = nr.get('params', None)
+        if p is not None and not isinstance(p, str):
+            try:
+                nr['params'] = json.dumps(p)
+            except Exception:
+                nr['params'] = str(p)
+        # Ensure numeric fields are plain Python ints/floats
+        if 'horizon' in nr:
+            try:
+                nr['horizon'] = int(nr['horizon'])
+            except Exception:
+                pass
+        if 'rows_count' in nr:
+            try:
+                nr['rows_count'] = int(nr['rows_count'])
+            except Exception:
+                pass
+        normalized_rows.append(nr)
+
+    existing_rows = normalized_rows
+
+    # Check for existing record
+    has_existing_idx = next((i for i, r in enumerate(existing_rows) if r.get("model") == model and r.get("run_date") == run_date), None)
+
+    if has_existing_idx is not None and not force:
         raise FileExistsError(f"Metadata already exists for model={model}, run_date={run_date}")
 
-    if has_existing and force:
-        df_idx = df_idx.filter(~((pl.col("model") == model) & (pl.col("run_date") == run_date)))
+    if has_existing_idx is not None and force:
+        # remove existing
+        existing_rows.pop(has_existing_idx)
 
-    updated_df = (
-        pl.concat([df_idx, pl.DataFrame([metadata])], how="diagonal")
-        if not df_idx.is_empty()
-        else pl.DataFrame([metadata])
-    )
-    _atomic_write(updated_df, index_path)
+    # Append new metadata row
+    existing_rows.append(meta_copy)
+
+    # Recreate DataFrame from normalized dicts and write atomically
+    new_df = pl.DataFrame(existing_rows)
+    _atomic_write(new_df, index_path)
 
 
 def merge_into_current(model: str, run_date: str, new_df: Union[pl.DataFrame, list[dict]], base_dir: Union[str, Path]) -> None:

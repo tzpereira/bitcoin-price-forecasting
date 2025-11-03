@@ -75,6 +75,32 @@ class SARIMAXModel(BaseModel):
         self.full_index = full_index
         self.last_date = full_index[-1]
 
+        # Trim leading/trailing NaNs and interpolate interior NaNs for more stable fitting
+        mask = ~np.isnan(self.endog)
+        if not mask.any():
+            raise ValueError("No non-null values available to fit SARIMAX.")
+        # first and last index with data
+        start_idx = int(np.argmax(mask))
+        end_idx = int(len(mask) - 1 - np.argmax(mask[::-1]))
+        if start_idx > 0 or end_idx < (len(self.endog) - 1):
+            logger.info(f"Trimming NaN edges for SARIMAX fit: using index range {start_idx}:{end_idx+1}")
+        endog_to_fit = self.endog[start_idx:end_idx+1].astype(float)
+        full_index_to_fit = self.full_index[start_idx:end_idx+1]
+
+        # If interior NaNs remain, interpolate linearly
+        if np.isnan(endog_to_fit).any():
+            logger.warning("Interior NaNs detected in series; applying linear interpolation before fitting.")
+            inds = np.arange(len(endog_to_fit))
+            good = ~np.isnan(endog_to_fit)
+            if good.sum() < 2:
+                raise ValueError("Not enough non-NaN points to interpolate SARIMAX fit.")
+            endog_to_fit = np.interp(inds, inds[good], endog_to_fit[good])
+
+        # Assign trimmed/interpolated series for fitting
+        self.endog = endog_to_fit
+        self.full_index = full_index_to_fit
+        self.last_date = self.full_index[-1]
+
         non_null_count = int(np.count_nonzero(~np.isnan(self.endog)))
         logger.info(f"Fitting SARIMAX(order={self.order}, seasonal_order={self.seasonal_order}) on {non_null_count} non-null samples.")
 

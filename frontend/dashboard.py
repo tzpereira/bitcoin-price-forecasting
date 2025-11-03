@@ -52,10 +52,10 @@ def show_dashboard():
     with st.expander("Model Selection & Comparison", expanded=True):
         compare_mode = st.checkbox("Compare models side by side", value=False)
         if compare_mode:
-            selected_models = st.multiselect("Select models to compare", ["Linear Regression", "XGBoost"], default=["Linear Regression", "XGBoost"])
+            selected_models = st.multiselect("Select models to compare", ["Linear Regression", "XGBoost", "SARIMAX"], default=["Linear Regression", "XGBoost"])
             horizon = 180
         else:
-            selected_model = st.selectbox("Model", ["Linear Regression", "XGBoost"], index=0)
+            selected_model = st.selectbox("Model", ["Linear Regression", "XGBoost", "SARIMAX"], index=0)
             selected_models = [selected_model]
             horizon = 180
 
@@ -68,7 +68,15 @@ def show_dashboard():
     # Fetch and plot forecasts for each selected model
     forecast_dfs = {}
     for model_name in selected_models:
-        model_api = "linear" if model_name == "Linear Regression" else "xgboost"
+        # map UI name to backend model api name
+        if model_name == "Linear Regression":
+            model_api = "linear"
+        elif model_name == "XGBoost":
+            model_api = "xgboost"
+        elif model_name == "SARIMAX":
+            model_api = "sarimax"
+        else:
+            model_api = model_name.lower().replace(" ", "_")
         try:
             forecast_resp = requests.get(f"{backend_host}/forecasts/current/{model_api}", timeout=60)
             trigger_forecast = False
@@ -129,7 +137,7 @@ def show_dashboard():
         name="Historical",
         line=dict(color="#3498db", width=3)
     ))
-    colors = {"Linear Regression": "#FF9900", "XGBoost": "#00C853"}
+    colors = {"Linear Regression": "#FF9900", "XGBoost": "#00C853", "SARIMAX": "#8E44AD"}
     for model_name, df_pred in forecast_dfs.items():
         forecast_dates = df_pred["Date"].to_list()
         forecast_values = df_pred["prediction"].to_list()
@@ -178,7 +186,14 @@ def show_dashboard():
             st.metric("MAPE", f"{mape_val:.2f}%" if mape_val is not None else "-")
 
     for model_name in selected_models:
-        model_api = "linear" if model_name == "Linear Regression" else "xgboost"
+        if model_name == "Linear Regression":
+            model_api = "linear"
+        elif model_name == "XGBoost":
+            model_api = "xgboost"
+        elif model_name == "SARIMAX":
+            model_api = "sarimax"
+        else:
+            model_api = model_name.lower().replace(" ", "_")
         metrics = fetch_metrics(model_api, backend_host)
         st.markdown(f"<h4 style='color:#FAFAFA; margin-bottom:0.2em;'>{model_name} Metrics (Yesterday)</h4>", unsafe_allow_html=True)
         render_metrics_cards(metrics)

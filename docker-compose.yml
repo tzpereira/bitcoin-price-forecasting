@@ -12,8 +12,10 @@ services:
     volumes:
       - ./backend/data:/app/backend/data
       - ./backend/features:/app/backend/features
+      - /etc/localtime:/etc/localtime:ro
     environment:
       - PYTHONUNBUFFERED=1
+      - TZ=UTC
     healthcheck:
       test: ["CMD-SHELL", "curl -f http://localhost:8000/health || exit 1"]
       interval: 30s
@@ -29,10 +31,12 @@ services:
       - '8501:8501'
     volumes:
       - ./:/app:cached
+      - /etc/localtime:/etc/localtime:ro
     environment:
       - PYTHONUNBUFFERED=1
       - IN_DOCKER=1
       - BACKEND_HOST=http://backend:8000
+      - TZ=UTC
     depends_on:
       - backend
     restart: unless-stopped

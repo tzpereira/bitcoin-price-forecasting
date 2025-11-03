@@ -1,7 +1,7 @@
 
 # Bitcoin Price Forecasting
 
-Robust pipeline for Bitcoin price forecasting using Machine Learning (XGBoost and Linear Regression), advanced feature engineering, REST API, interactive dashboard, and forecast persistence in Parquet files.
+Robust pipeline for Bitcoin price forecasting using Machine Learning (XGBoost, Linear Regression, and SARIMAX), advanced feature engineering, REST API, interactive dashboard, and forecast persistence in Parquet files.
 
 ![Dashboard](./public/image/bitcoin_price_forecasting.png)
 
@@ -30,7 +30,7 @@ bitcoin-price-forecasting/
 │   ├── core/          # Logger
 │   ├── data/          # Raw, processed data, forecasts (Parquet)
 │   ├── features/      # Feature engineering
-│   ├── models/        # ML models (XGBoost, Linear)
+│   ├── models/        # ML models (XGBoost, Linear, SARIMAX)
 │   ├── routes/        # FastAPI routes
 │   ├── services/      # Forecast, storage, etc
 │   ├── tests/         # Unit tests
@@ -68,7 +68,8 @@ bitcoin-price-forecasting/
 
 ## Model Evaluation: Cross-Validation
 
-To robustly evaluate model performance, you can run time series cross-validation (K-Fold, TimeSeriesSplit) for both Linear Regression and XGBoost models. This splits the historical data into sequential train/test folds, trains the model on each fold, and saves the metrics (MAE, RMSE, MAPE) for each period.
+
+To robustly evaluate model performance, you can run time series cross-validation (K-Fold, TimeSeriesSplit) for Linear Regression, XGBoost, and SARIMAX models. This splits the historical data into sequential train/test folds, trains the model on each fold, and saves the metrics (MAE, RMSE, MAPE) for each period.
 
 **How to run cross-validation:**
 
@@ -76,6 +77,8 @@ To robustly evaluate model performance, you can run time series cross-validation
 python backend/scripts/run_crossval.py linear
 # or
 python backend/scripts/run_crossval.py xgboost
+# or
+python backend/scripts/run_crossval.py sarimax
 ```
 
 This will generate a Parquet file with fold metrics in `backend/data/metrics/` and save the final trained model in `backend/data/models/`.

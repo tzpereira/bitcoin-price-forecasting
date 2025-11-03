@@ -3,6 +3,7 @@ import datetime
 from datetime import datetime, timedelta, date, time
 import polars as pl
 import numpy as np
+import logging, traceback
 from backend.services.forecasts_storage import save_forecast_run
 from backend.models.linear_regression import LinearRegressionModel
 from backend.models.xgboost_model import XGBoostModel
@@ -445,38 +446,75 @@ def run_sarimax_forecast(horizon=365, model_params=None):
     """
     SARIMAX forecast for Bitcoin prices. Trains (if needed) and produces an n-day forecast.
     """
+    logger = logging.getLogger(__name__)
     # Import locally to avoid top-level dependency issues
     from backend.models.sarimax_model import SARIMAXModel
 
-    # If model file does not exist, fit from features and save
-    if not os.path.exists(SARIMAX_MODEL_PATH):
-        model = SARIMAXModel(
-            model_path=SARIMAX_MODEL_PATH,
-            order=(1, 1, 1),
-            seasonal_order=(0, 1, 1, 7)
-        )
-        
-        model.fit_from_file(FEATURES_DATA_PATH)
-        model.save()
-    else:
-        model = SARIMAXModel(model_path=SARIMAX_MODEL_PATH)
-        model.load()
-
-    # Produce forecast
-    df_forecast = model.predict(horizon)
-    # Ensure we have a list of dicts with Date and prediction
     try:
-        rows = df_forecast.to_dicts()
-    except Exception:
-        # fallback: iterate rows
-        rows = [{"Date": r[0], "prediction": float(r[1])} for r in df_forecast.rows()]
+        # If model file does not exist, fit from features and save
+        if not os.path.exists(SARIMAX_MODEL_PATH):
+            model = SARIMAXModel(
+                model_path=SARIMAX_MODEL_PATH,
+                order=(1, 1, 1),
+                seasonal_order=(0, 1, 1, 7)
+            )
 
-    future_rows = [{"target_date": r["Date"], "prediction": float(r["prediction"])} for r in rows]
+            model.fit_from_file(FEATURES_DATA_PATH)
+            model.save()
+        else:
+            model = SARIMAXModel(model_path=SARIMAX_MODEL_PATH)
+            model.load()
 
-    run_date = date.today().isoformat()
-    save_forecast_run('sarimax', run_date, horizon, future_rows, params={
-        "order": getattr(model, 'order', None),
-        "seasonal_order": getattr(model, 'seasonal_order', None)
-    })
+        # Log some model state for debugging
+        try:
+            logger.info(f"SARIMAX model object: type={type(model.model)}, has_get_forecast={hasattr(model.model, 'get_forecast')}")
+            logger.info(f"SARIMAX last_date: {getattr(model, 'last_date', None)}, full_index_len: {len(getattr(model, 'full_index', [])) if getattr(model, 'full_index', None) is not None else 0}")
+        except Exception:
+            logger.debug("Could not log SARIMAX internals", exc_info=True)
 
-    return future_rows
+        # Produce forecast
+        df_forecast = model.predict(horizon)
+        # Ensure we have a list of dicts with Date and prediction
+        try:
+            rows = df_forecast.to_dicts()
+        except Exception:
+            # fallback: iterate rows
+            rows = [{"Date": r[0], "prediction": float(r[1])} for r in df_forecast.rows()]
+
+        # Coerce numpy types to native Python types to avoid Parquet serialization issues
+        future_rows = []
+        for r in rows:
+            date_val = r.get("Date")
+            pred_val = r.get("prediction")
+            # convert numpy types
+            try:
+                if isinstance(pred_val, (np.floating, np.integer)):
+                    pred_val = pred_val.item()
+            except Exception:
+                pass
+            future_rows.append({"target_date": str(date_val), "prediction": float(pred_val)})
+
+        run_date = date.today().isoformat()
+
+        # Convert params to simple types (lists) so they can be serialized to Parquet
+        order_param = getattr(model, 'order', None)
+        seasonal_param = getattr(model, 'seasonal_order', None)
+        try:
+            if isinstance(order_param, tuple):
+                order_param = list(order_param)
+            if isinstance(seasonal_param, tuple):
+                seasonal_param = list(seasonal_param)
+        except Exception:
+            pass
+
+        save_forecast_run('sarimax', run_date, horizon, future_rows, params={
+            "order": order_param,
+            "seasonal_order": seasonal_param
+        })
+
+        return future_rows
+    except Exception as e:
+        logger.error("Error running SARIMAX forecast: %s", e)
+        logger.error(traceback.format_exc())
+        # re-raise so the FastAPI route returns the traceback in the response
+        raise

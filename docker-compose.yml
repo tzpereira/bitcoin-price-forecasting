@@ -14,8 +14,9 @@ services:
       - ./backend/features:/app/backend/features
       - /etc/localtime:/etc/localtime:ro
     environment:
+      - CORS_ORIGINS=${CORS_ORIGINS}
       - PYTHONUNBUFFERED=1
-      - TZ=UTC
+      - TZ=${TZ}
     healthcheck:
       test: ["CMD-SHELL", "curl -f http://localhost:8000/health || exit 1"]
       interval: 30s
@@ -35,8 +36,8 @@ services:
     environment:
       - PYTHONUNBUFFERED=1
       - IN_DOCKER=1
-      - BACKEND_HOST=http://backend:8000
-      - TZ=UTC
+      - BACKEND_HOST=${BACKEND_URL}
+      - TZ=${TZ}
     depends_on:
       - backend
     restart: unless-stopped

@@ -1,15 +1,22 @@
 import os
+from dotenv import load_dotenv
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from backend.services.data import ensure_features
-
 from backend.routes import health, forecast, data, forecasts, metrics
+
+load_dotenv()
 
 app = FastAPI(title="Bitcoin Forecasting Backend")
 
+
+# Parse CORS_ORIGINS as a list (even if only one value)
+cors_origins_raw = os.environ.get("CORS_ORIGINS", "")
+cors_origins = [origin.strip() for origin in cors_origins_raw.split(",") if origin.strip()]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[os.getenv("CORS_ORIGINS")],
+    allow_origins=cors_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

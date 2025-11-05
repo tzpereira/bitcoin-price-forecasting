@@ -8,3 +8,4 @@ uvicorn[standard]
 kagglehub
 statsmodels
 joblib
+python-dotenv

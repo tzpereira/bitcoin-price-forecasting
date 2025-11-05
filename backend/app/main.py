@@ -1,11 +1,19 @@
 import os
-import subprocess
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 from backend.services.data import ensure_features
 
 from backend.routes import health, forecast, data, forecasts, metrics
 
 app = FastAPI(title="Bitcoin Forecasting Backend")
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[os.getenv("CORS_ORIGINS")],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 app.include_router(health.router)
 app.include_router(forecast.router)

@@ -1,10 +1,13 @@
 import os
 import sys
+from dotenv import load_dotenv
 from datetime import datetime, timedelta
 import streamlit as st
 import polars as pl
 import plotly.graph_objects as go
 import requests
+
+load_dotenv()
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 
@@ -61,10 +64,10 @@ def show_dashboard():
 
     st.markdown("<hr style='border:1px solid #232323; margin:1.5em 0 1.5em 0;'>", unsafe_allow_html=True)
 
-    backend_host = os.environ.get("BACKEND_HOST", "http://localhost:8000")
+    backend_host = os.environ.get("BACKEND_URL")
     if os.environ.get("IN_DOCKER") == "1":
-        backend_host = os.environ.get("BACKEND_HOST", "http://localhost:8000")
-
+        backend_host = os.environ.get("BACKEND_URL")
+        
     # Fetch and plot forecasts for each selected model
     forecast_dfs = {}
     for model_name in selected_models:

@@ -20,5 +20,5 @@ COPY . .
 # Expose backend port (FastAPI/uvicorn)
 EXPOSE 8000
 
-# Default command: run FastAPI app (backend.app.main:app)
-CMD ["uvicorn", "backend.app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+# Default command: run FastAPI app (app.main:app)
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]

@@ -67,6 +67,9 @@ def show_dashboard():
     backend_host = os.environ.get("BACKEND_URL")
     if os.environ.get("IN_DOCKER") == "1":
         backend_host = os.environ.get("BACKEND_URL")
+
+    api_token = os.environ.get("API_TOKEN")
+    headers = {"X-API-Token": api_token} if api_token else {}
         
     # Fetch and plot forecasts for each selected model
     forecast_dfs = {}
@@ -81,7 +84,7 @@ def show_dashboard():
         else:
             model_api = model_name.lower().replace(" ", "_")
         try:
-            forecast_resp = requests.get(f"{backend_host}/forecasts/current/{model_api}", timeout=60)
+            forecast_resp = requests.get(f"{backend_host}/forecasts/current/{model_api}", timeout=60, headers=headers)
             trigger_forecast = False
             if forecast_resp.status_code == 404:
                 trigger_forecast = True
@@ -99,9 +102,9 @@ def show_dashboard():
                 else:
                     trigger_forecast = True
             if trigger_forecast:
-                calc_resp = requests.post(f"{backend_host}/forecast", json={"model": model_api, "horizon": horizon}, timeout=120)
+                calc_resp = requests.post(f"{backend_host}/forecast", json={"model": model_api, "horizon": horizon}, timeout=120, headers=headers)
                 calc_resp.raise_for_status()
-                forecast_resp = requests.get(f"{backend_host}/forecasts/current/{model_api}", timeout=60)
+                forecast_resp = requests.get(f"{backend_host}/forecasts/current/{model_api}", timeout=60, headers=headers)
                 forecast_resp.raise_for_status()
             forecast_json = forecast_resp.json().get("rows", [])
             if not forecast_json:
@@ -120,7 +123,7 @@ def show_dashboard():
 
     # Load historical data (kept the same)
     try:
-        hist_resp = requests.get(f"{backend_host}/data", timeout=60)
+        hist_resp = requests.get(f"{backend_host}/data", timeout=60, headers=headers)
         hist_resp.raise_for_status()
         hist_json = hist_resp.json().get("history", [])
         if not hist_json:
@@ -168,7 +171,7 @@ def show_dashboard():
     st.markdown("<div style='margin-bottom: 1.5em;'></div>", unsafe_allow_html=True)
     def fetch_metrics(model_api, backend_host):
         try:
-            resp = requests.get(f"{backend_host}/metrics/{model_api}", timeout=30)
+            resp = requests.get(f"{backend_host}/metrics/{model_api}", timeout=30, headers=headers)
             if resp.status_code == 200:
                 return resp.json()
         except Exception:

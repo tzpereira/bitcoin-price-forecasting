@@ -11,7 +11,7 @@ RUN apt-get update \
 
 WORKDIR /app
 
-RUN pip install --no-cache-dir -r ../requirements.txt
+RUN pip install --no-cache-dir -r backend/requirements.txt
 
 # Copy the full project into the image
 COPY . .

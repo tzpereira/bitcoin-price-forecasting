@@ -1,5 +1,6 @@
 import traceback
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Depends, Request
+from backend.app.auth import verify_token
 from pydantic import BaseModel
 from typing import Optional
 from backend.services import forecast_service
@@ -13,7 +14,7 @@ class ForecastRequest(BaseModel):
 
 
 @router.post("/forecast")
-def forecast(req: ForecastRequest):
+def forecast(req: ForecastRequest, request: Request, _: None = Depends(verify_token)):
     try:
         if req.model == "linear":
             rows = forecast_service.run_linear_regression_forecast(horizon=req.horizon)

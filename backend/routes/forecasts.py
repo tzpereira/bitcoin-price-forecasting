@@ -4,7 +4,8 @@ from datetime import date
 from functools import lru_cache
 
 import polars as pl
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, HTTPException, status, Depends, Request
+from backend.app.auth import verify_token
 from pydantic import BaseModel
 
 from backend.services.forecasts_storage import merge_into_current, upsert_run_metadata
@@ -59,7 +60,7 @@ def _safe_read_parquet(path: Path) -> pl.DataFrame:
 # === Routes ===
 
 @router.post("/forecasts", status_code=status.HTTP_201_CREATED, response_model=ForecastRunOut)
-def post_forecast(payload: ForecastIn) -> ForecastRunOut:
+def post_forecast(payload: ForecastIn, request: Request, _: None = Depends(verify_token)) -> ForecastRunOut:
     base_dir = _forecasts_dir()
     base_dir.mkdir(parents=True, exist_ok=True)
 
@@ -111,7 +112,7 @@ def post_forecast(payload: ForecastIn) -> ForecastRunOut:
 
 
 @router.get("/forecasts")
-def list_forecasts() -> Dict[str, Any]:
+def list_forecasts(request: Request, _: None = Depends(verify_token)) -> Dict[str, Any]:
     """Return all stored forecast runs."""
     index_path = _forecasts_dir() / INDEX_NAME
     if not index_path.exists():
@@ -122,7 +123,7 @@ def list_forecasts() -> Dict[str, Any]:
 
 
 @router.get("/forecasts/current/{model}")
-def get_current(model: str) -> Dict[str, Any]:
+def get_current(model: str, request: Request, _: None = Depends(verify_token)) -> Dict[str, Any]:
     """Retrieve the current merged forecast for a model."""
     path = _forecasts_dir() / f"current_{model}.parquet"
     if not path.exists():

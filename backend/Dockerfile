@@ -12,8 +12,6 @@ RUN apt-get update \
 WORKDIR /app
 
 # Copy backend requirements and install
-# build context is the repository root, so reference backend/requirements.txt
-COPY backend/requirements.txt ./requirements.txt
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy the full project into the image

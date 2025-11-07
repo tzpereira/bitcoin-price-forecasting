@@ -46,11 +46,11 @@ class DataPreprocessor:
         print(f"File btcusd_1-min_data.csv updated in {self.raw_path}")
 
         # Start processing the dataset
-        batch_size = 1000000
+        batch_size = 100000
         reader = pl.read_csv_batched(self.raw_path, batch_size=batch_size)
-        processed_chunks = []
 
-        for df in reader.next_batches():
+        processed_files = []
+        for i, df in enumerate(reader.next_batches()):
             # Validation and transformation for each chunk
             if 'Timestamp' not in df.columns:
                 raise ValueError("Input data must contain a 'Timestamp' column in seconds.")
@@ -67,10 +67,14 @@ class DataPreprocessor:
                 logger.error(f"Missing columns: {missing}")
                 raise ValueError(f"Missing columns: {missing}")
             df = df.select(required)
-            processed_chunks.append(df)
 
-        # Concatenate all processed chunks
-        final_df = pl.concat(processed_chunks)
+            # Salva cada chunk em Parquet separado
+            chunk_path = f"{self.processed_path}_part_{i}.parquet"
+            df.write_parquet(chunk_path)
+            processed_files.append(chunk_path)
+
+        # Concatenar todos os arquivos Parquet gerados
+        final_df = pl.concat([pl.read_parquet(f) for f in processed_files])
 
         # Ensure processed directory exists
         processed_dir = os.path.dirname(self.processed_path)

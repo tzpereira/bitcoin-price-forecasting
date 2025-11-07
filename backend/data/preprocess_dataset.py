@@ -50,30 +50,36 @@ class DataPreprocessor:
         reader = pl.read_csv_batched(self.raw_path, batch_size=batch_size)
 
         processed_files = []
-        for i, df in enumerate(reader.next_batches()):
-            # Validation and transformation for each chunk
-            if 'Timestamp' not in df.columns:
-                raise ValueError("Input data must contain a 'Timestamp' column in seconds.")
-            if df['Timestamp'].max() > 1e12:
-                raise ValueError("The 'Timestamp' column appears to be in milliseconds, not seconds.")
+        i = 0
+        while True:
+            batches = reader.next_batches(batch_size)
+            if not batches:
+                break
+            for df in batches:
+                # Validation and transformation for each chunk
+                if 'Timestamp' not in df.columns:
+                    raise ValueError("Input data must contain a 'Timestamp' column in seconds.")
+                if df['Timestamp'].max() > 1e12:
+                    raise ValueError("The 'Timestamp' column appears to be in milliseconds, not seconds.")
 
-            df = df.with_columns([
-                pl.col('Timestamp').mul(1000).cast(pl.Datetime('ms')).alias('Datetime')
-            ])
+                df = df.with_columns([
+                    pl.col('Timestamp').mul(1000).cast(pl.Datetime('ms')).alias('Datetime')
+                ])
 
-            required = ['Datetime', 'Timestamp', 'Open', 'High', 'Low', 'Close', 'Volume']
-            missing = [col for col in required if col not in df.columns]
-            if missing:
-                logger.error(f"Missing columns: {missing}")
-                raise ValueError(f"Missing columns: {missing}")
-            df = df.select(required)
+                required = ['Datetime', 'Timestamp', 'Open', 'High', 'Low', 'Close', 'Volume']
+                missing = [col for col in required if col not in df.columns]
+                if missing:
+                    logger.error(f"Missing columns: {missing}")
+                    raise ValueError(f"Missing columns: {missing}")
+                df = df.select(required)
 
-            # Salva cada chunk em Parquet separado
-            chunk_path = f"{self.processed_path}_part_{i}.parquet"
-            df.write_parquet(chunk_path)
-            processed_files.append(chunk_path)
+                # Save each chunk as a separate Parquet file
+                chunk_path = f"{self.processed_path}_part_{i}.parquet"
+                df.write_parquet(chunk_path)
+                processed_files.append(chunk_path)
+                i += 1
 
-        # Concatenar todos os arquivos Parquet gerados
+        # Concatenate all generated Parquet files
         final_df = pl.concat([pl.read_parquet(f) for f in processed_files])
 
         # Ensure processed directory exists
@@ -81,6 +87,10 @@ class DataPreprocessor:
         os.makedirs(processed_dir, exist_ok=True)
         final_df.write_parquet(self.processed_path)
         logger.info(f"Processed data saved to {self.processed_path}")
+
+        # Clean up chunk files
+        for f in processed_files:
+            os.remove(f)
 
 
 if __name__ == "__main__":

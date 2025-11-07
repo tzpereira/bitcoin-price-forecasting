@@ -19,6 +19,8 @@ class FeatureBuilder:
 
     @timer
     def run(self):
+        df = pl.read_parquet(self.input_path)
+        
         # --- AGGREGATE TO DAILY ---
         # Convert Datetime to string before slicing for date
         df = df.with_columns([

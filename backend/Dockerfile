@@ -12,12 +12,15 @@ RUN apt-get update \
 
 WORKDIR /app
 
-COPY ../requirements.txt ./requirements.txt
+# Copy only backend requirements
+COPY backend/requirements.txt ./requirements.txt
 RUN pip install --no-cache-dir -r requirements.txt
 
-COPY .. .
+# Copy backend code as a package
+COPY backend/ /app/backend
 
 # Expose backend port (FastAPI/uvicorn)
 EXPOSE 8000
 
+# Start FastAPI app
 CMD ["uvicorn", "backend.app.main:app", "--host", "0.0.0.0", "--port", "8000"]

@@ -1,4 +1,5 @@
 import os
+import resource
 from dotenv import load_dotenv
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -6,6 +7,10 @@ from backend.services.data import ensure_features
 from backend.routes import health, forecast, data, forecasts, metrics
 
 load_dotenv()
+
+max_ram_mb = int(os.environ.get("MAX_RAM_MB"))
+soft, hard = max_ram_mb * 1024 * 1024, max_ram_mb * 1024 * 1024
+resource.setrlimit(resource.RLIMIT_AS, (soft, hard))
 
 app = FastAPI(title="Bitcoin Forecasting Backend")
 

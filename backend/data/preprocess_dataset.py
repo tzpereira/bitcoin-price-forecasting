@@ -46,7 +46,7 @@ class DataPreprocessor:
         print(f"File btcusd_1-min_data.csv updated in {self.raw_path}")
 
         # Start processing the dataset
-        batch_size = 100000
+        batch_size = 10000
         reader = pl.read_csv_batched(self.raw_path, batch_size=batch_size)
 
         processed_files = []

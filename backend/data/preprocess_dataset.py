@@ -46,32 +46,36 @@ class DataPreprocessor:
         print(f"File btcusd_1-min_data.csv updated in {self.raw_path}")
 
         # Start processing the dataset
-        df = pl.read_csv(self.raw_path)
+        batch_size = 1_000_000
+        reader = pl.read_csv(self.raw_path, batched=True, batch_size=batch_size)
+        processed_chunks = []
 
-        # Validate timestamp column
-        if 'Timestamp' not in df.columns:
-            raise ValueError("Input data must contain a 'Timestamp' column in seconds.")
-        if df['Timestamp'].max() > 1e12:
-            raise ValueError("The 'Timestamp' column appears to be in milliseconds, not seconds.")
+        for df in reader.next_batches():
+            # Validation and transformation for each chunk
+            if 'Timestamp' not in df.columns:
+                raise ValueError("Input data must contain a 'Timestamp' column in seconds.")
+            if df['Timestamp'].max() > 1e12:
+                raise ValueError("The 'Timestamp' column appears to be in milliseconds, not seconds.")
 
-        # Add Datetime column
-        df = df.with_columns([
-            pl.col('Timestamp').mul(1000).cast(pl.Datetime('ms')).alias('Datetime')
-        ])
+            df = df.with_columns([
+                pl.col('Timestamp').mul(1000).cast(pl.Datetime('ms')).alias('Datetime')
+            ])
 
-        # Ensure required columns
-        required = ['Datetime', 'Timestamp', 'Open', 'High', 'Low', 'Close', 'Volume']
-        missing = [col for col in required if col not in df.columns]
-        if missing:
-            logger.error(f"Missing columns: {missing}")
-            raise ValueError(f"Missing columns: {missing}")
-        df = df.select(required)
+            required = ['Datetime', 'Timestamp', 'Open', 'High', 'Low', 'Close', 'Volume']
+            missing = [col for col in required if col not in df.columns]
+            if missing:
+                logger.error(f"Missing columns: {missing}")
+                raise ValueError(f"Missing columns: {missing}")
+            df = df.select(required)
+            processed_chunks.append(df)
+
+        # Concatenate all processed chunks
+        final_df = pl.concat(processed_chunks)
 
         # Ensure processed directory exists
         processed_dir = os.path.dirname(self.processed_path)
         os.makedirs(processed_dir, exist_ok=True)
-
-        df.write_parquet(self.processed_path)
+        final_df.write_parquet(self.processed_path)
         logger.info(f"Processed data saved to {self.processed_path}")
 
 

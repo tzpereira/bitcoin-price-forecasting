@@ -32,7 +32,7 @@ FEATURES_PATH = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'd
 
 def ensure_data():
     if not os.path.exists(FEATURES_PATH):
-        ensure_features(FEATURES_PATH)
+        ensure_features()
 
 @app.on_event("startup")
 def on_startup():

@@ -55,9 +55,8 @@ def ensure_features():
 
     # Remove intermediate files
     raw_path = os.path.abspath(os.path.join(os.path.dirname(FEATURES_DATA_PATH), '../raw/btcusd_1-min_data.csv'))
-    processed_path = os.path.abspath(os.path.join(os.path.dirname(FEATURES_DATA_PATH), 'btc_data_processed.parquet'))
 
-    for f in [raw_path, processed_path]:
+    for f in [raw_path]:
         if os.path.exists(f):
             try:
                 os.remove(f)

@@ -13,16 +13,10 @@ os.makedirs(RAW_DIR, exist_ok=True)
 
 RAW_DATA_PATH = os.path.join(RAW_DIR, 'btc_daily_data.parquet')
 
-PROCESSED_DIR = os.path.join(os.path.dirname(__file__), 'processed')
-os.makedirs(PROCESSED_DIR, exist_ok=True)
-
-PROCESSED_DATA_PATH = os.path.join(PROCESSED_DIR, 'btc_data_processed.parquet')
-
 
 class DataPreprocessor:
-    def __init__(self, raw_path, processed_path):
+    def __init__(self, raw_path):
         self.raw_path = raw_path
-        self.processed_path = processed_path
 
     @timer
     def run(self):
@@ -92,37 +86,6 @@ class DataPreprocessor:
         df.write_parquet(OUTFILE)
         print(f"Raw Parquet file saved at {OUTFILE}")
 
-        # Process in batches as before
-        batch_size = 50000
-        processed_files = []
-        i = 0
-        total_lines = df.height
-
-        for start in range(0, total_lines, batch_size):
-            df_chunk = df.slice(start, batch_size)
-            required = ['Datetime', 'Timestamp', 'Open', 'High', 'Low', 'Close', 'Volume']
-            missing = [col for col in required if col not in df_chunk.columns]
-            if missing:
-                logger.error(f"Missing columns: {missing}")
-                raise ValueError(f"Missing columns: {missing}")
-
-            df_chunk = df_chunk.select(required)
-            chunk_path = f"{self.processed_path}_part_{i}.parquet"
-            df_chunk.write_parquet(chunk_path)
-            processed_files.append(chunk_path)
-            i += 1
-
-        # Concatenate all generated Parquet files
-        final_df = pl.concat([pl.read_parquet(f) for f in processed_files])
-        processed_dir = os.path.dirname(self.processed_path)
-        os.makedirs(processed_dir, exist_ok=True)
-        final_df.write_parquet(self.processed_path)
-        logger.info(f"Processed data saved to {self.processed_path}")
-
-        # Remove temporary chunk files
-        for f in processed_files:
-            os.remove(f)
-
 
 if __name__ == "__main__":
-    DataPreprocessor(RAW_DATA_PATH, PROCESSED_DATA_PATH).run()
+    DataPreprocessor(RAW_DATA_PATH).run()

@@ -169,7 +169,13 @@ class FeatureBuilder:
             pl.col(col).fill_null(0).fill_nan(0) if col in numeric_cols else pl.col(col)
             for col in df.columns
         ])
-            
+        
+        # Replace inf and -inf with 0 in all numeric columns
+        df = df.with_columns([
+            pl.when(pl.col(col).is_infinite()).then(0).otherwise(pl.col(col)).alias(col) if col in numeric_cols else pl.col(col)
+            for col in df.columns
+        ])
+
         # Filter out rows with Close <= 0 or Volume <= 0
         df = df.filter((pl.col('Close') > 0) & (pl.col('Volume') > 0))
 

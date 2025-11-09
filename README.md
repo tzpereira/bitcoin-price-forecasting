@@ -1,4 +1,3 @@
-
 # Bitcoin Price Forecasting
 
 Robust pipeline for Bitcoin price forecasting using Machine Learning (XGBoost, Linear Regression, and SARIMAX), advanced feature engineering, REST API, interactive dashboard, and forecast persistence in Parquet files.
@@ -55,7 +54,7 @@ bitcoin-price-forecasting/
    - Frontend: http://localhost:8501 (dashboard)
 
 2. **First run:**
-   - The backend automatically downloads/processes data (Kaggle), generates features, and trains models if needed.
+   - The backend automatically downloads/processes data from CryptoCompare API, generates features, and trains models if needed.
    - Forecasts are saved in Parquet and served via API.
 
 3. **Stop containers:**
@@ -117,7 +116,7 @@ Review the metrics to compare model performance and check for overfitting or dat
 ## Main Dependencies
 
 **Backend:**
-- fastapi, uvicorn, polars, numpy, scikit-learn, xgboost, kagglehub, pytest
+- fastapi, uvicorn, polars, numpy, scikit-learn, xgboost, requests, python-dotenv, pytest
 
 **Frontend:**
 - streamlit, plotly, requests, polars

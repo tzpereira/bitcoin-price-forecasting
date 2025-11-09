@@ -4,8 +4,9 @@ import datetime
 from backend.core.logger import logger
 from backend.utils.timer import timer
 
-PROCESSED_DATA_PATH = os.path.join(
-    os.path.dirname(__file__), '..', 'data', 'processed', 'btc_data_processed.parquet'
+
+RAW_DATA_PATH = os.path.join(
+    os.path.dirname(__file__), '..', 'data', 'raw', 'btc_daily_data.parquet'
 )
 
 FEATURES_DATA_PATH = os.path.join(
@@ -175,4 +176,4 @@ class FeatureBuilder:
         logger.info(f"Features saved to {self.output_path}")
 
 if __name__ == "__main__":
-    FeatureBuilder(PROCESSED_DATA_PATH, FEATURES_DATA_PATH).run()
+    FeatureBuilder(RAW_DATA_PATH, FEATURES_DATA_PATH).run()

@@ -1,4 +1,5 @@
 import traceback
+import logging
 from fastapi import APIRouter, HTTPException, Depends, Request
 from backend.app.auth import verify_token
 from pydantic import BaseModel
@@ -24,4 +25,14 @@ def forecast(req: ForecastRequest, request: Request, _: None = Depends(verify_to
             rows = forecast_service.run_sarimax_forecast(horizon=req.horizon)
         return {"predictions": rows}
     except Exception as e:
-        raise HTTPException(status_code=500, detail={"error": str(e), "traceback": traceback.format_exc()})
+        logging.error(f"Forecast error for model '{req.model}' with horizon {req.horizon}: {e}\n{traceback.format_exc()}")
+        raise HTTPException(
+            status_code=500,
+            detail={
+                "error": str(e),
+                "traceback": traceback.format_exc(),
+                "model": req.model,
+                "horizon": req.horizon,
+                "request_ip": request.client.host if request.client else None
+            }
+        )

@@ -6,5 +6,7 @@ xgboost
 fastapi
 uvicorn[standard]
 statsmodels
+requests
+pydantic
 joblib
 python-dotenv

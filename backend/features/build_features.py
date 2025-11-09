@@ -170,6 +170,8 @@ class FeatureBuilder:
             for col in df.columns
         ])
             
+        # Filter out rows with Close <= 0 or Volume <= 0
+        df = df.filter((pl.col('Close') > 0) & (pl.col('Volume') > 0))
 
         # Save raw features (ready for linear models, XGBoost, Prophet)
         df.write_parquet(self.output_path)

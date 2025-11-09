@@ -13,9 +13,10 @@ os.makedirs(RAW_DIR, exist_ok=True)
 
 RAW_DATA_PATH = os.path.join(RAW_DIR, 'btc_daily_data.parquet')
 
-PROCESSED_DATA_PATH = os.path.join(
-    os.path.dirname(__file__), 'processed', 'btc_data_processed.parquet'
-)
+PROCESSED_DIR = os.path.join(os.path.dirname(__file__), 'processed')
+os.makedirs(PROCESSED_DIR, exist_ok=True)
+
+PROCESSED_DATA_PATH = os.path.join(PROCESSED_DIR, 'btc_data_processed.parquet')
 
 
 class DataPreprocessor:

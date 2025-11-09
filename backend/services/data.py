@@ -2,7 +2,7 @@ import os
 import subprocess
 import polars as pl
 from datetime import datetime, timezone, timedelta
-from backend.services.forecast_service import FEATURES_DATA_PATH
+from backend.services.forecast_service import FEATURES_DATA_PATH, run_linear_regression_forecast, run_xgboost_forecast, run_sarimax_forecast
 
 def get_latest_history():
     """
@@ -46,6 +46,13 @@ def ensure_features():
     subprocess.run(["python", "-m", "backend.data.preprocess_dataset"], check=True)
     subprocess.run(["python", "-m", "backend.features.build_features"], check=True)
     
+    print("[DATA SERVICE] Data preprocessing and feature engineering completed.")
+    
+    print("[DATA SERVICE] Running initial forecasts...")
+    run_linear_regression_forecast(horizon=30)
+    run_xgboost_forecast(horizon=30)
+    run_sarimax_forecast(horizon=30)
+
     # Remove intermediate files
     raw_path = os.path.abspath(os.path.join(os.path.dirname(FEATURES_DATA_PATH), '../raw/btcusd_1-min_data.csv'))
     processed_path = os.path.abspath(os.path.join(os.path.dirname(FEATURES_DATA_PATH), 'btc_data_processed.parquet'))

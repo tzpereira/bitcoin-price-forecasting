@@ -56,11 +56,11 @@ def show_dashboard():
         compare_mode = st.checkbox("Compare models side by side", value=False)
         if compare_mode:
             selected_models = st.multiselect("Select models to compare", ["Linear Regression", "XGBoost", "SARIMAX"], default=["Linear Regression", "XGBoost"])
-            horizon = 180
+            horizon = 90
         else:
             selected_model = st.selectbox("Model", ["Linear Regression", "XGBoost", "SARIMAX"], index=0)
             selected_models = [selected_model]
-            horizon = 180
+            horizon = 90
 
     st.markdown("<hr style='border:1px solid #232323; margin:1.5em 0 1.5em 0;'>", unsafe_allow_html=True)
 

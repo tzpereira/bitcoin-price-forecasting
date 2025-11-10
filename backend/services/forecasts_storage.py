@@ -54,6 +54,7 @@ def upsert_run_metadata(index_path: Union[str, Path], metadata: Dict[str, Any], 
 
     - If an existing record is found and `force=False`, raises FileExistsError.
     - If `force=True`, the existing record is replaced.
+    All fields must be primitive types; 'params' is always a JSON string or None.
     """
     # Read existing index safely
     df_idx = _read_index_safely(index_path)
@@ -66,8 +67,12 @@ def upsert_run_metadata(index_path: Union[str, Path], metadata: Dict[str, Any], 
     try:
         meta_copy["params"] = json.dumps(params_val) if params_val is not None else None
     except Exception:
-        # Fallback: stringify
         meta_copy["params"] = str(params_val) if params_val is not None else None
+
+    # Ensure all fields are primitive types (str, int, float, bool, None)
+    for k, v in meta_copy.items():
+        if not isinstance(v, (str, int, float, bool)) and v is not None:
+            meta_copy[k] = json.dumps(str(v))
 
     # If index is empty, just write the single-row DataFrame
     if df_idx.is_empty():
@@ -82,30 +87,15 @@ def upsert_run_metadata(index_path: Union[str, Path], metadata: Dict[str, Any], 
         existing_rows = [row for row in df_idx.rows()]
         # try to coerce into list of dicts if possible
         if existing_rows and isinstance(existing_rows[0], tuple):
-            # cannot recover column names reliably, so raise
             raise RuntimeError("Existing runs index has unexpected format and cannot be merged safely.")
 
-    # Normalize existing rows: ensure 'params' is a JSON string and primitive types
+    # Normalize existing rows: ensure all fields are primitive types
     normalized_rows = []
     for r in existing_rows:
         nr = dict(r) if isinstance(r, dict) else dict(r)
-        p = nr.get('params', None)
-        if p is not None and not isinstance(p, str):
-            try:
-                nr['params'] = json.dumps(p)
-            except Exception:
-                nr['params'] = str(p)
-        # Ensure numeric fields are plain Python ints/floats
-        if 'horizon' in nr:
-            try:
-                nr['horizon'] = int(nr['horizon'])
-            except Exception:
-                pass
-        if 'rows_count' in nr:
-            try:
-                nr['rows_count'] = int(nr['rows_count'])
-            except Exception:
-                pass
+        for k, v in nr.items():
+            if not isinstance(v, (str, int, float, bool)) and v is not None:
+                nr[k] = json.dumps(v)
         normalized_rows.append(nr)
 
     existing_rows = normalized_rows
@@ -117,13 +107,10 @@ def upsert_run_metadata(index_path: Union[str, Path], metadata: Dict[str, Any], 
         raise FileExistsError(f"Metadata already exists for model={model}, run_date={run_date}")
 
     if has_existing_idx is not None and force:
-        # remove existing
         existing_rows.pop(has_existing_idx)
 
-    # Append new metadata row
     existing_rows.append(meta_copy)
 
-    # Recreate DataFrame from normalized dicts and write atomically
     new_df = pl.DataFrame(existing_rows)
     _atomic_write(new_df, index_path)
 
@@ -215,3 +202,26 @@ def save_forecast_run(model: str, run_date: str, horizon: int, rows: list[dict],
     }
     upsert_run_metadata(str(index_path), metadata, force=force)
     merge_into_current(model, run_date, rows, str(base_dir))
+
+
+def create_lock(model: str) -> None:
+    """Create a lock file atomically for the given model. Raises FileExistsError if already exists."""
+    base_dir = Path(__file__).resolve().parent.parent / "data" / "forecasts"
+    base_dir.mkdir(parents=True, exist_ok=True)
+    lock_path = base_dir / f"current_{model}.lock"
+    if lock_path.exists():
+        raise FileExistsError(f"Lock file already exists: {lock_path}")
+    with open(lock_path, "w") as f:
+        f.write(str(datetime.now()))
+
+
+def remove_lock(model: str) -> None:
+    """Remove a lock file for the given model if it exists."""
+    base_dir = Path(__file__).resolve().parent.parent / "data" / "forecasts"
+    base_dir.mkdir(parents=True, exist_ok=True)
+    lock_path = base_dir / f"current_{model}.lock"
+    if lock_path.exists():
+        try:
+            lock_path.unlink()
+        except Exception as e:
+            logger.warning(f"Failed to remove lock file {lock_path}: {e}")

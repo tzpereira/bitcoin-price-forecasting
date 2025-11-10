@@ -7,6 +7,8 @@ import logging, traceback
 from backend.services.forecasts_storage import save_forecast_run
 from backend.models.linear_regression import LinearRegressionModel
 from backend.models.xgboost_model import XGBoostModel
+from backend.models.sarimax_model import SARIMAXModel
+
 
 FEATURES_DATA_PATH = os.path.join(
     os.path.dirname(__file__), '..', 'data', 'processed', 'btc_features.parquet'
@@ -32,6 +34,9 @@ def run_linear_regression_forecast(horizon=365, window_size=1095, progress_callb
     Execute linear regression forecast for Bitcoin prices.
     """
 
+    run_date = date.today().isoformat()
+    model = "linear"
+    
     df = pl.read_parquet(FEATURES_DATA_PATH)
     feature_cols = [col for col in df.columns if col not in ['Datetime', 'Timestamp', 'Close']]
     all_cols = ['Datetime'] + feature_cols + ['Close']
@@ -213,8 +218,6 @@ def run_linear_regression_forecast(horizon=365, window_size=1095, progress_callb
         })
         last_datetime = next_datetime
 
-    run_date = date.today().isoformat()
-    model = "linear"
     save_forecast_run(model, run_date, horizon, [
         {"target_date": row["Datetime"][:10], "prediction": row["prediction"]} for row in future_rows
     ], params={"window_size": window_size})
@@ -224,6 +227,10 @@ def run_xgboost_forecast(horizon=365, window_size=1095, progress_callback=None, 
     """
     XGBoost forecast for Bitcoin prices. Trains once, then rolls forward updating features for each step.
     """
+    
+    run_date = date.today().isoformat()
+    model = "xgboost"
+
     df = pl.read_parquet(FEATURES_DATA_PATH)
     feature_cols = [col for col in df.columns if col not in ['Datetime', 'Timestamp', 'Close']]
     all_cols = ['Datetime'] + feature_cols + ['Close']
@@ -435,8 +442,6 @@ def run_xgboost_forecast(horizon=365, window_size=1095, progress_callback=None, 
         })
         last_datetime = next_datetime
 
-    run_date = date.today().isoformat()
-    model = "xgboost"
     save_forecast_run(model, run_date, horizon, [
         {"target_date": row["Datetime"][:10], "prediction": row["prediction"]} for row in future_rows
     ], params={"window_size": window_size, **(model_params or {})})
@@ -446,10 +451,10 @@ def run_sarimax_forecast(horizon=365, model_params=None):
     """
     SARIMAX forecast for Bitcoin prices. Trains (if needed) and produces an n-day forecast.
     """
-    logger = logging.getLogger(__name__)
-    # Import locally to avoid top-level dependency issues
-    from backend.models.sarimax_model import SARIMAXModel
 
+    run_date = date.today().isoformat()
+    model =  "sarimax"
+    
     try:
         # If model file does not exist, fit from features and save
         if not os.path.exists(SARIMAX_MODEL_PATH):
@@ -464,13 +469,6 @@ def run_sarimax_forecast(horizon=365, model_params=None):
         else:
             model = SARIMAXModel(model_path=SARIMAX_MODEL_PATH)
             model.load()
-
-        # Log some model state for debugging
-        try:
-            logger.info(f"SARIMAX model object: type={type(model.model)}, has_get_forecast={hasattr(model.model, 'get_forecast')}")
-            logger.info(f"SARIMAX last_date: {getattr(model, 'last_date', None)}, full_index_len: {len(getattr(model, 'full_index', [])) if getattr(model, 'full_index', None) is not None else 0}")
-        except Exception:
-            logger.debug("Could not log SARIMAX internals", exc_info=True)
 
         # Produce forecast
         df_forecast = model.predict(horizon)
@@ -494,7 +492,6 @@ def run_sarimax_forecast(horizon=365, model_params=None):
                 pass
             future_rows.append({"target_date": str(date_val), "prediction": float(pred_val)})
 
-        run_date = date.today().isoformat()
 
         # Convert params to simple types (lists) so they can be serialized to Parquet
         order_param = getattr(model, 'order', None)
@@ -507,14 +504,11 @@ def run_sarimax_forecast(horizon=365, model_params=None):
         except Exception:
             pass
 
-        save_forecast_run('sarimax', run_date, horizon, future_rows, params={
+        save_forecast_run(model, run_date, horizon, future_rows, params={
             "order": order_param,
             "seasonal_order": seasonal_param
         })
 
         return future_rows
     except Exception as e:
-        logger.error("Error running SARIMAX forecast: %s", e)
-        logger.error(traceback.format_exc())
-        # re-raise so the FastAPI route returns the traceback in the response
         raise

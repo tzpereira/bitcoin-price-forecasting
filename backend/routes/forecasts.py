@@ -2,6 +2,8 @@ from pathlib import Path
 from typing import List, Optional, Dict, Any
 from datetime import date
 from functools import lru_cache
+import time
+import logging
 
 import polars as pl
 from fastapi import APIRouter, HTTPException, status, Depends, Request
@@ -9,6 +11,7 @@ from backend.app.auth import verify_token
 from pydantic import BaseModel
 
 from backend.services.forecasts_storage import merge_into_current, upsert_run_metadata
+from backend.services.forecast_service import run_linear_regression_forecast, run_xgboost_forecast, run_sarimax_forecast
 
 router = APIRouter()
 INDEX_NAME = "_runs.parquet"
@@ -124,10 +127,50 @@ def list_forecasts(request: Request, _: None = Depends(verify_token)) -> Dict[st
 
 @router.get("/forecasts/current/{model}")
 def get_current(model: str, request: Request, _: None = Depends(verify_token)) -> Dict[str, Any]:
-    """Retrieve the current merged forecast for a model."""
+    """Return the current forecast for the model. If the file does not exist and no lock, run only the requested model's forecast."""
+    logger = logging.getLogger("backend.routes.forecasts")
     path = _forecasts_dir() / f"current_{model}.parquet"
+    lock_path = _forecasts_dir() / f"current_{model}.lock"
+
+    timeout = 600  # 10 minutes
+    poll_interval = 2  # seconds
+    waited = 0
+
+    # If file exists, return immediately
+    if path.exists():
+        logger.info(f"Returning forecast file {path} for model {model}.")
+        df = _safe_read_parquet(path)
+        logger.debug(f"Forecast DataFrame columns: {df.columns}")
+        return {"rows": df.to_dicts()}
+
+    # If lock exists, wait up to timeout
+    while lock_path.exists():
+        if waited >= timeout:
+            logger.warning(f"Timeout waiting for lock of model {model} to be removed.")
+            raise HTTPException(status_code=423, detail=f"Forecast for model {model} has been running for more than 10 minutes. Please try again later.")
+        logger.info(f"Lock file {lock_path} exists. Waiting for forecast of model {model}...")
+        time.sleep(poll_interval)
+        waited += poll_interval
+
+    # If file still does not exist and no lock, run only the requested model's forecast
     if not path.exists():
+        logger.info(f"No forecast file or lock for model {model}. Running forecast...")
+        if model == "linear":
+            run_linear_regression_forecast(30)
+        elif model == "xgboost":
+            run_xgboost_forecast(30)
+        elif model == "sarimax":
+            run_sarimax_forecast(30)
+        else:
+            logger.error(f"Unknown model requested: {model}")
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Unknown model: {model}")
+
+    # After running, try to read the file
+    if not path.exists():
+        logger.error(f"Forecast file {path} not found after running forecast.")
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No current forecast found for this model.")
 
+    logger.info(f"Returning forecast file {path} for model {model}.")
     df = _safe_read_parquet(path)
+    logger.debug(f"Forecast DataFrame columns: {df.columns}")
     return {"rows": df.to_dicts()}

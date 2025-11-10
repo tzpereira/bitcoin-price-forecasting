@@ -48,9 +48,9 @@ def ensure_features():
     
     print("[DATA SERVICE] Data preprocessing and feature engineering completed.")
     
-    print("[DATA SERVICE] Running initial forecasts...")
-    run_linear_regression_forecast(horizon=30)
+    print("[DATA SERVICE] Running updated forecasts...")
     run_xgboost_forecast(horizon=30)
+    run_linear_regression_forecast(horizon=30)
     run_sarimax_forecast(horizon=30)
 
     # Remove intermediate files

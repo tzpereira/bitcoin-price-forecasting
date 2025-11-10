@@ -47,10 +47,30 @@ def show_dashboard():
             margin-top: 5em;
             margin-bottom: 0.5em;
         }
+        .dashboard-title {
+            color:#FF9900; text-align:center; margin-bottom:0.1em; letter-spacing:0.5px; font-size:5em; font-weight: bold;
+        }
+        @media (max-width: 600px) {
+            .dashboard-title {
+                font-size: 2.2em !important;
+                padding-top: 0.5em;
+            }
+        }
         </style>
     """, unsafe_allow_html=True)
+    
+    st.markdown("""
+        <style>
+        @media (max-width: 600px) {
+            .dashboard-title {
+                font-size: 2.2em !important;
+                padding-top: 0.5em;
+            }
+        }
+        </style>
+    """, unsafe_allow_html=True)
+    st.markdown("<h1 class='dashboard-title' style='color:#FF9900; text-align:center; margin-bottom:0.1em; letter-spacing:0.5px; font-size:5em; font-weight: bold;'>₿itcoin Price Forecasting</h1>", unsafe_allow_html=True)
 
-    st.markdown("<h1 style='color:#FF9900; text-align:center; margin-bottom:0.1em; letter-spacing:0.5px; font-size:5em; font-weight: bold;'>₿itcoin Price Forecasting</h1>", unsafe_allow_html=True)
 
     with st.expander("Model Selection & Comparison", expanded=True):
         compare_mode = st.checkbox("Compare models side by side", value=False)
@@ -58,11 +78,13 @@ def show_dashboard():
             selected_models = st.multiselect("Select models to compare", ["Linear Regression", "XGBoost", "SARIMAX"], default=["Linear Regression", "XGBoost"])
             horizon = 30
         else:
-            selected_model = st.selectbox("Model", ["Linear Regression", "XGBoost", "SARIMAX"], index=0)
+            selected_model = st.selectbox("Model", ["Linear Regression", "XGBoost", "SARIMAX"], index=1)
             selected_models = [selected_model]
             horizon = 30
 
     st.markdown("<hr style='border:1px solid #232323; margin:1.5em 0 1.5em 0;'>", unsafe_allow_html=True)
+
+    loading_placeholder = st.empty()
 
     backend_host = os.environ.get("BACKEND_URL")
     if os.environ.get("IN_DOCKER") == "1":
@@ -73,6 +95,7 @@ def show_dashboard():
         
     # Fetch and plot forecasts for each selected model
     forecast_dfs = {}
+    any_success = False
     for model_name in selected_models:
         # map UI name to backend model api name
         if model_name == "Linear Regression":
@@ -84,54 +107,47 @@ def show_dashboard():
         else:
             model_api = model_name.lower().replace(" ", "_")
         try:
-            forecast_resp = requests.get(f"{backend_host}/forecasts/current/{model_api}", timeout=60, headers=headers)
-            trigger_forecast = False
+            forecast_resp = requests.get(f"{backend_host}/forecasts/current/{model_api}", timeout=600, headers=headers)
             if forecast_resp.status_code == 404:
-                trigger_forecast = True
-            else:
-                forecast_resp.raise_for_status()
-                forecast_json = forecast_resp.json().get("rows", [])
-                if forecast_json:
-                    today = datetime.now().date()
-                    tomorrow = today + timedelta(days=1)
-                    tomorrow_row = next((row for row in forecast_json if datetime.strptime(row["target_date"], "%Y-%m-%d").date() == tomorrow), None)
-                    if tomorrow_row:
-                        run_date = datetime.strptime(tomorrow_row["run_date"], "%Y-%m-%d").date()
-                        if run_date != today:
-                            trigger_forecast = True
-                else:
-                    trigger_forecast = True
-            if trigger_forecast:
-                calc_resp = requests.post(f"{backend_host}/forecast", json={"model": model_api, "horizon": horizon}, timeout=120, headers=headers)
-                calc_resp.raise_for_status()
-                forecast_resp = requests.get(f"{backend_host}/forecasts/current/{model_api}", timeout=60, headers=headers)
-                forecast_resp.raise_for_status()
-            forecast_json = forecast_resp.json().get("rows", [])
-            if not forecast_json:
-                st.error(f"No forecast returned from backend for {model_name}.")
                 continue
-            df_pred = pl.DataFrame(forecast_json)
-            df_pred = df_pred.with_columns([
-                pl.col("target_date").alias("Date"),
-                pl.col("prediction").round(2)
-            ])
-            df_pred = df_pred.sort("Date").head(horizon)
-            forecast_dfs[model_name] = df_pred
-        except requests.exceptions.RequestException as e:
-            st.error(f"Failed to load forecasts from backend for {model_name}: {e}")
+            forecast_resp.raise_for_status()
+            forecast_json = forecast_resp.json().get("rows", [])
+            if forecast_json:
+                today = datetime.now().date()
+                tomorrow = today + timedelta(days=1)
+                tomorrow_row = next((row for row in forecast_json if datetime.strptime(row["target_date"], "%Y-%m-%d").date() == tomorrow), None)
+                if tomorrow_row:
+                    run_date = datetime.strptime(tomorrow_row["run_date"], "%Y-%m-%d").date()
+                    if run_date != today:
+                        continue
+                df_pred = pl.DataFrame(forecast_json)
+                df_pred = df_pred.with_columns([
+                    pl.col("target_date").alias("Date"),
+                    pl.col("prediction").round(2)
+                ])
+                df_pred = df_pred.sort("Date").head(horizon)
+                forecast_dfs[model_name] = df_pred
+                any_success = True
+        except requests.exceptions.RequestException:
             continue
 
     # Load historical data (kept the same)
     try:
-        hist_resp = requests.get(f"{backend_host}/data", timeout=60, headers=headers)
+        hist_resp = requests.get(f"{backend_host}/data", timeout=600, headers=headers)
         hist_resp.raise_for_status()
         hist_json = hist_resp.json().get("history", [])
         if not hist_json:
-            st.error("No historical data returned from backend.")
+            loading_placeholder.info("Updating historical data and running forecasts...")
             return
         df_hist = pl.DataFrame(hist_json)
-    except requests.exceptions.RequestException as e:
-        st.error(f"Failed to load historical data from backend: {e}")
+    except requests.exceptions.RequestException:
+        loading_placeholder.info("Updating historical data and running forecasts...")
+        return
+
+    if any_success:
+        loading_placeholder.empty()
+    else:
+        loading_placeholder.info("Updating historical data and running forecasts...")
         return
 
     # Plot

@@ -79,7 +79,7 @@ def show_dashboard():
             selected_models = st.multiselect("Select models to compare", ["XGBoost", "Linear Regression", "SARIMAX"], default=["XGBoost", "Linear Regression"])
             horizon = 30
         else:
-            selected_model = st.selectbox("Model", ["XGBoost", "Linear Regression", "SARIMAX"], index=1)
+            selected_model = st.selectbox("Model", ["XGBoost", "Linear Regression", "SARIMAX"], index=0)
             selected_models = [selected_model]
             horizon = 30
 

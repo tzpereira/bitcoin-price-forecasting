@@ -76,10 +76,10 @@ def show_dashboard():
     with st.expander("Model Selection & Comparison", expanded=True):
         compare_mode = st.checkbox("Compare models side by side", value=False)
         if compare_mode:
-            selected_models = st.multiselect("Select models to compare", ["Linear Regression", "XGBoost", "SARIMAX"], default=["Linear Regression", "XGBoost"])
+            selected_models = st.multiselect("Select models to compare", ["XGBoost", "Linear Regression", "SARIMAX"], default=["XGBoost", "Linear Regression"])
             horizon = 30
         else:
-            selected_model = st.selectbox("Model", ["Linear Regression", "XGBoost", "SARIMAX"], index=1)
+            selected_model = st.selectbox("Model", ["XGBoost", "Linear Regression", "SARIMAX"], index=1)
             selected_models = [selected_model]
             horizon = 30
 

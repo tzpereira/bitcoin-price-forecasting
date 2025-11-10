@@ -6,6 +6,7 @@ import streamlit as st
 import polars as pl
 import plotly.graph_objects as go
 import requests
+import time
 
 load_dotenv()
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
@@ -96,6 +97,8 @@ def show_dashboard():
     # Fetch and plot forecasts for each selected model
     forecast_dfs = {}
     any_success = False
+    polling_timeout = 600  # 10 minutes
+    polling_interval = 10  # seconds
     for model_name in selected_models:
         # map UI name to backend model api name
         if model_name == "Linear Regression":
@@ -106,30 +109,41 @@ def show_dashboard():
             model_api = "sarimax"
         else:
             model_api = model_name.lower().replace(" ", "_")
-        try:
-            forecast_resp = requests.get(f"{backend_host}/forecasts/current/{model_api}", timeout=600, headers=headers)
-            if forecast_resp.status_code == 404:
-                continue
-            forecast_resp.raise_for_status()
-            forecast_json = forecast_resp.json().get("rows", [])
-            if forecast_json:
-                today = datetime.now().date()
-                tomorrow = today + timedelta(days=1)
-                tomorrow_row = next((row for row in forecast_json if datetime.strptime(row["target_date"], "%Y-%m-%d").date() == tomorrow), None)
-                if tomorrow_row:
-                    run_date = datetime.strptime(tomorrow_row["run_date"], "%Y-%m-%d").date()
-                    if run_date != today:
+        start_poll = datetime.now()
+        forecast_json = []
+        with st.spinner(f"Updating historical data and running forecasts for {model_name}..."):
+            while (datetime.now() - start_poll).total_seconds() < polling_timeout:
+                try:
+                    forecast_resp = requests.get(f"{backend_host}/forecasts/current/{model_api}", timeout=30, headers=headers)
+                    if forecast_resp.status_code == 404:
+                        time.sleep(polling_interval)
                         continue
-                df_pred = pl.DataFrame(forecast_json)
-                df_pred = df_pred.with_columns([
-                    pl.col("target_date").alias("Date"),
-                    pl.col("prediction").round(2)
-                ])
-                df_pred = df_pred.sort("Date").head(horizon)
-                forecast_dfs[model_name] = df_pred
-                any_success = True
-        except requests.exceptions.RequestException:
-            continue
+                    forecast_resp.raise_for_status()
+                    forecast_json = forecast_resp.json().get("rows", [])
+                    if forecast_json:
+                        today = datetime.now().date()
+                        tomorrow = today + timedelta(days=1)
+                        tomorrow_row = next((row for row in forecast_json if datetime.strptime(row["target_date"], "%Y-%m-%d").date() == tomorrow), None)
+                        if tomorrow_row:
+                            run_date = datetime.strptime(tomorrow_row["run_date"], "%Y-%m-%d").date()
+                            if run_date != today:
+                                time.sleep(polling_interval)
+                                continue
+                        df_pred = pl.DataFrame(forecast_json)
+                        df_pred = df_pred.with_columns([
+                            pl.col("target_date").alias("Date"),
+                            pl.col("prediction").round(2)
+                        ])
+                        df_pred = df_pred.sort("Date").head(horizon)
+                        forecast_dfs[model_name] = df_pred
+                        any_success = True
+                        break
+                except requests.exceptions.RequestException:
+                    time.sleep(polling_interval)
+                    continue
+            else:
+                st.error(f"Timeout waiting for forecast for {model_name}. Try again later.")
+                return
 
     # Load historical data (kept the same)
     try:

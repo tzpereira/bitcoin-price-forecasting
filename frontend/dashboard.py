@@ -120,15 +120,19 @@ def show_dashboard():
                         continue
                     forecast_resp.raise_for_status()
                     forecast_json = forecast_resp.json().get("rows", [])
-                    if forecast_json:
-                        today = datetime.now().date()
-                        tomorrow = today + timedelta(days=1)
-                        tomorrow_row = next((row for row in forecast_json if datetime.strptime(row["target_date"], "%Y-%m-%d").date() == tomorrow), None)
-                        if tomorrow_row:
-                            run_date = datetime.strptime(tomorrow_row["run_date"], "%Y-%m-%d").date()
-                            if run_date != today:
-                                time.sleep(polling_interval)
+                    today = datetime.now().date()
+                    has_today = False
+                    for row in forecast_json:
+                        run_date = row.get("run_date")
+                        if run_date:
+                            try:
+                                run_date_dt = datetime.strptime(run_date, "%Y-%m-%d").date()
+                                if run_date_dt == today:
+                                    has_today = True
+                                    break
+                            except Exception:
                                 continue
+                    if forecast_json and has_today:
                         df_pred = pl.DataFrame(forecast_json)
                         df_pred = df_pred.with_columns([
                             pl.col("target_date").alias("Date"),
@@ -138,6 +142,7 @@ def show_dashboard():
                         forecast_dfs[model_name] = df_pred
                         any_success = True
                         break
+                    time.sleep(polling_interval)
                 except requests.exceptions.RequestException:
                     time.sleep(polling_interval)
                     continue

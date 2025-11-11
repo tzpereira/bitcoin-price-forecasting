@@ -127,7 +127,7 @@ def list_forecasts(request: Request, _: None = Depends(verify_token)) -> Dict[st
 
 @router.get("/forecasts/current/{model}")
 def get_current(model: str, request: Request, _: None = Depends(verify_token)) -> Dict[str, Any]:
-    """Return the current forecast for the model. If the file does not exist and no lock, run only the requested model's forecast."""
+    """Return the current forecast for the model. If the file is missing or outdated, run only the requested model's forecast."""
     logger = logging.getLogger("backend.routes.forecasts")
     path = _forecasts_dir() / f"current_{model}.parquet"
     lock_path = _forecasts_dir() / f"current_{model}.lock"
@@ -135,13 +135,22 @@ def get_current(model: str, request: Request, _: None = Depends(verify_token)) -
     timeout = 600  # 10 minutes
     poll_interval = 2  # seconds
     waited = 0
+    today = date.today().isoformat()
 
-    # If file exists, return immediately
+    def has_today_run(df):
+        if "run_date" in df.columns:
+            return any(str(r) == today for r in df["run_date"].to_list())
+        return False
+
+    # If file exists, check if it's up to date
     if path.exists():
-        logger.info(f"Returning forecast file {path} for model {model}.")
         df = _safe_read_parquet(path)
-        logger.debug(f"Forecast DataFrame columns: {df.columns}")
-        return {"rows": df.to_dicts()}
+        if has_today_run(df):
+            logger.info(f"Returning up-to-date forecast file {path} for model {model}.")
+            logger.debug(f"Forecast DataFrame columns: {df.columns}")
+            return {"rows": df.to_dicts()}
+        else:
+            logger.info(f"Forecast file {path} for model {model} is outdated. Will run new forecast.")
 
     # If lock exists, wait up to timeout
     while lock_path.exists():
@@ -152,25 +161,24 @@ def get_current(model: str, request: Request, _: None = Depends(verify_token)) -
         time.sleep(poll_interval)
         waited += poll_interval
 
-    # If file still does not exist and no lock, run only the requested model's forecast
-    if not path.exists():
-        logger.info(f"No forecast file or lock for model {model}. Running forecast...")
-        if model == "linear":
-            run_linear_regression_forecast(30)
-        elif model == "xgboost":
-            run_xgboost_forecast(30)
-        elif model == "sarimax":
-            run_sarimax_forecast(30)
-        else:
-            logger.error(f"Unknown model requested: {model}")
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Unknown model: {model}")
+    # If file is missing or outdated and no lock, run only the requested model's forecast
+    logger.info(f"No up-to-date forecast file or lock for model {model}. Running forecast...")
+    if model == "linear":
+        run_linear_regression_forecast(30)
+    elif model == "xgboost":
+        run_xgboost_forecast(30)
+    elif model == "sarimax":
+        run_sarimax_forecast(30)
+    else:
+        logger.error(f"Unknown model requested: {model}")
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Unknown model: {model}")
 
     # After running, try to read the file
     if not path.exists():
         logger.error(f"Forecast file {path} not found after running forecast.")
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No current forecast found for this model.")
 
-    logger.info(f"Returning forecast file {path} for model {model}.")
     df = _safe_read_parquet(path)
+    logger.info(f"Returning new forecast file {path} for model {model}.")
     logger.debug(f"Forecast DataFrame columns: {df.columns}")
     return {"rows": df.to_dicts()}

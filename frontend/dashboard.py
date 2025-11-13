@@ -200,7 +200,7 @@ def show_dashboard():
         legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1)
     )
     st.markdown("<h3 style='color:#FF9900; margin-bottom:0.5em;'>Results</h3>", unsafe_allow_html=True)
-    st.plotly_chart(fig, use_container_width=True)
+    st.plotly_chart(fig, width="container")
 
     # --- METRICS CARDS ---
     st.markdown("<div style='margin-bottom: 1.5em;'></div>", unsafe_allow_html=True)
@@ -246,7 +246,7 @@ def show_dashboard():
             st.markdown(f"<h4 style='font-size:0.8em; color:#FAFAFA;'>(Next {horizon} Days, {model_name})</h4>", unsafe_allow_html=True)
             st.dataframe(
                 df_pred.select(["Date", "prediction"]).rename({"prediction": "Predicted Price"}),
-                use_container_width=True,
+                width="stretch",
                 hide_index=True,
                 height=300
             )

@@ -200,7 +200,7 @@ def show_dashboard():
         legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1)
     )
     st.markdown("<h3 style='color:#FF9900; margin-bottom:0.5em;'>Results</h3>", unsafe_allow_html=True)
-    st.plotly_chart(fig, width="container")
+    st.plotly_chart(fig, width="stretch")
 
     # --- METRICS CARDS ---
     st.markdown("<div style='margin-bottom: 1.5em;'></div>", unsafe_allow_html=True)

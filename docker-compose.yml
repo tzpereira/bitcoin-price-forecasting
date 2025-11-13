@@ -10,7 +10,7 @@ services:
       - 8.8.8.8
       - 1.1.1.1
     volumes:
-      - ./backend/data:/app/backend/data
+      - bitcoin_data:/app/backend/data
       - ./backend/features:/app/backend/features
       - /etc/localtime:/etc/localtime:ro
     env_file:
@@ -41,6 +41,9 @@ services:
     depends_on:
       - backend
     restart: unless-stopped
+
+volumes:
+  bitcoin_data:
 
 networks:
   default:
